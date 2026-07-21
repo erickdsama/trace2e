@@ -1,8 +1,6 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { validateTrace, asTrace } from "@trace2e/schema";
+import { DASHBOARD_HTML } from "./embedded.js";
 import { ALLOWED_ORIGIN, INGEST_HOST, INGEST_PORT, IS_REMOTE } from "./config.js";
 import {
   deleteTrace,
@@ -32,7 +30,6 @@ import {
  */
 
 const MAX_BODY = 25 * 1024 * 1024;
-const DASHBOARD_FILE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates", "dashboard.html");
 
 function isLoopback(req: IncomingMessage): boolean {
   const addr = req.socket.remoteAddress ?? "";
@@ -93,13 +90,8 @@ export async function startIngestServer(): Promise<void> {
 
     // Management dashboard (static HTML; the API calls it makes still require the token).
     if (req.method === "GET" && (path === "/" || path === "/ui" || path === "/dashboard")) {
-      try {
-        const html = await readFile(DASHBOARD_FILE);
-        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
-        res.end(html);
-      } catch {
-        send(res, 500, { error: "dashboard unavailable" });
-      }
+      res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+      res.end(DASHBOARD_HTML);
       return;
     }
 

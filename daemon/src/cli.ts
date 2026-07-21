@@ -1,15 +1,11 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
-import { fileURLToPath } from "node:url";
-import { dirname, join } from "node:path";
 import { validateTrace, asTrace } from "@trace2e/schema";
 import { ensureStore, getOrCreateToken, listTraces, saveTrace } from "./store.js";
 import { startIngestServer } from "./ingest-server.js";
 import { startMcpServer } from "./mcp-server.js";
 import { runInit } from "./init.js";
+import { SAMPLE_SIGNUP_JSON } from "./embedded.js";
 import { INGEST_HOST, INGEST_PORT, IS_REMOTE, REMOTE_URL, TRACE2E_HOME } from "./config.js";
-
-const TEMPLATE_DIR = join(dirname(fileURLToPath(import.meta.url)), "..", "templates");
 
 /**
  * `trace2e` CLI. Portable across projects: install once, then `trace2e init` in any repo.
@@ -30,6 +26,8 @@ const HELP = `trace2e — record browser flows, generate Playwright tests via Cl
 
 Usage:
   trace2e init [--force] [--npx]   Set up .mcp.json + /trace2e command in the current project
+  trace2e init --token <t> [--url <daemon>]   Client mode: point at a hosted daemon
+                                   (URL defaults to the shared daemon)
   trace2e mcp                      Run the MCP server on stdio (used by .mcp.json) + ingest
   trace2e serve                    Run only the ingest server (while recording)
   trace2e list                     List recorded traces
@@ -73,13 +71,23 @@ async function main(): Promise<void> {
       process.stdout.write(HELP);
       return;
 
-    case "init":
+    case "init": {
+      // --url <daemon-url> and --token <token> put init into client mode (point at a hosted daemon)
+      const flag = (name: string) => {
+        const i = rest.indexOf(name);
+        return i >= 0 && rest[i + 1] && !rest[i + 1].startsWith("--") ? rest[i + 1] : undefined;
+      };
+      const token = flag("--token") ?? process.env.TRACE2E_TOKEN;
+      const url = flag("--url") ?? (rest.includes("--client") ? "" : undefined);
       await runInit(process.cwd(), {
         force: rest.includes("--force"),
         mode: rest.includes("--self") ? "self" : rest.includes("--npx") ? "npx" : "global",
-        selfPath: process.argv[1], // absolute path to this script/bundle when run as `node <path>`
+        selfPath: process.argv[1],
+        remoteUrl: url,
+        token,
       });
       return;
+    }
 
     case "serve":
     case "daemon":
@@ -107,7 +115,7 @@ async function main(): Promise<void> {
       return;
 
     case "sample": {
-      const raw = JSON.parse(await readFile(join(TEMPLATE_DIR, "sample-signup.json"), "utf8"));
+      const raw = JSON.parse(SAMPLE_SIGNUP_JSON);
       const { valid, errors } = validateTrace(raw);
       if (!valid) {
         console.error("[trace2e] bundled sample is invalid:", errors.join("; "));

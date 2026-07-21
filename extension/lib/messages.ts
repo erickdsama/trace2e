@@ -42,6 +42,7 @@ export type CaptureMessage =
 export type ControlMessage =
   | { kind: "control:query-state" }
   | { kind: "control:start"; name: string }
+  | { kind: "control:set-name"; name: string }
   | { kind: "control:pause" }
   | { kind: "control:resume" }
   | { kind: "control:stop" }

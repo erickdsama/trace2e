@@ -24,3 +24,6 @@ extension/key.pem
 
 # Local Claude Code settings (keep the shared /trace2e command, not personal settings)
 .claude/settings.local.json
+
+# Generated from daemon/templates by scripts/gen-embedded.mjs at build time
+daemon/src/embedded.ts

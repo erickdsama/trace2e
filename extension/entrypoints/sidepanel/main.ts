@@ -159,6 +159,9 @@ els.stepList.addEventListener("click", async (e) => {
   }
 });
 
+// Persist the flow name whenever it's edited — so it can be set before OR after recording,
+// and is used at upload time (fixes traces defaulting to "recorded-flow").
+els.flowName.addEventListener("change", () => send({ kind: "control:set-name", name: els.flowName.value.trim() }));
 els.btnStart.onclick = () => send({ kind: "control:start", name: els.flowName.value.trim() });
 els.btnPause.onclick = async () => {
   const s = await loadSession();
@@ -193,6 +196,8 @@ els.btnAddCustom.onclick = async () => {
 els.btnUpload.onclick = async () => {
   els.uploadResult.textContent = "Uploading…";
   els.uploadResult.className = "muted";
+  // Ensure the latest name field value is applied even if 'change' didn't fire.
+  await send({ kind: "control:set-name", name: els.flowName.value.trim() });
   const res: UploadResult = await send({ kind: "control:upload" });
   els.uploadResult.textContent = res.ok ? `Uploaded ✓ id=${res.id}` : `Failed: ${res.error}`;
   els.uploadResult.className = res.ok ? "ok" : "err";
@@ -280,7 +285,7 @@ els.btnAddDelay.onclick = async () => {
 const SETTINGS_KEY = "trace2e:settings";
 async function loadSettings() {
   const res = await chrome.storage.local.get(SETTINGS_KEY);
-  const s = { daemonUrl: "http://127.0.0.1:8787", token: "", ...(res[SETTINGS_KEY] ?? {}) };
+  const s = { daemonUrl: "https://trace2e.novaminds.xyz", token: "", ...(res[SETTINGS_KEY] ?? {}) };
   els.daemonUrl.value = s.daemonUrl;
   els.token.value = s.token;
 }

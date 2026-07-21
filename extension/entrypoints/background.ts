@@ -15,7 +15,7 @@ interface Settings {
   token: string;
 }
 const SETTINGS_KEY = "trace2e:settings";
-const DEFAULT_SETTINGS: Settings = { daemonUrl: "http://127.0.0.1:8787", token: "" };
+const DEFAULT_SETTINGS: Settings = { daemonUrl: "https://trace2e.novaminds.xyz", token: "" };
 
 async function getSettings(): Promise<Settings> {
   const res = await chrome.storage.local.get(SETTINGS_KEY);
@@ -135,6 +135,14 @@ chrome.runtime.onMessage.addListener((msg: AnyMessage & { kind: string }, _sende
       }
       case "control:start": {
         const s = await startRecording((msg as { name: string }).name);
+        sendResponse(s);
+        return;
+      }
+      case "control:set-name": {
+        const name = (msg as { name: string }).name;
+        const s = await mutateSession((x) => {
+          x.name = name;
+        });
         sendResponse(s);
         return;
       }
