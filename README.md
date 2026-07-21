@@ -21,31 +21,34 @@ Chrome extension  ──POST trace──▶  daemon (HTTP API + MCP + dashboard)
 
 ## Releases (what you download)
 
-Each tagged release attaches **lightweight, Node-based** artifacts — there is no compiled
-binary (a self-contained one is ~90 MB of embedded Node; not worth it when Claude Code
-users already have Node):
+Each tagged release attaches a **light, standalone Go client** (~5 MB, no Node needed) for
+every platform, plus the Chrome extension:
 
-| Asset | Size | What |
-|-------|------|------|
-| `trace2e.mjs` | ~750 KB | single-file client CLI (needs Node 18+) |
-| `trace2e-use.tgz` | ~170 KB | turnkey package: prebuilt extension + the CLI |
+| Asset | What |
+|-------|------|
+| `trace2e-linux-x64`, `trace2e-linux-arm64` | client binary (Linux) |
+| `trace2e-darwin-x64`, `trace2e-darwin-arm64` | client binary (macOS Intel / Apple Silicon) |
+| `trace2e-windows-x64.exe` | client binary (Windows) |
+| `trace2e-extension-chrome.zip` | the recorder extension (load unpacked) |
 
-The daemon also ships as a container image: `ghcr.io/erickdsama/trace2e-daemon`.
+The daemon (the server) is separate and ships as a container image:
+`ghcr.io/erickdsama/trace2e-daemon` (see `DEPLOY.md`).
 
-## Quick start — use a hosted daemon (client)
+## Quick start — client + hosted daemon
 
-If a trace2e daemon is already deployed (the extension defaults to
-`https://trace2e.novaminds.xyz`), you only need the token.
+The client is a small binary that installs the MCP server + `/trace2e` command into a
+project and talks to your hosted daemon. The extension defaults its Daemon URL to
+`https://trace2e.novaminds.xyz`, so you only need the token.
 
-1. **Set up the project.** Download `trace2e.mjs` from the latest release, then in your repo:
+1. **Set up the project.** Download the client binary for your OS, then in your repo:
    ```bash
-   node trace2e.mjs init --token <your-token>
+   ./trace2e-<os>-<arch> init --token <your-token>
    ```
-   This writes `.mcp.json` (MCP → the hosted daemon) and `.claude/commands/trace2e.md`.
+   This writes `.mcp.json` (MCP → the daemon) and `.claude/commands/trace2e.md`.
    Override the daemon with `--url https://your-daemon`.
-2. **Load the extension.** From `trace2e-use.tgz`, load `extension/` at `chrome://extensions`
-   (Developer mode → Load unpacked). Open the side panel → Settings → paste the token → Save.
-   The Daemon URL is pre-filled with the default.
+2. **Load the extension.** Unzip `trace2e-extension-chrome.zip`, load it at
+   `chrome://extensions` (Developer mode → Load unpacked). Side panel → Settings → paste the
+   token → Save (the URL is pre-filled).
 3. **Record → Upload.** Name the flow (any time), drive the site, add checkpoints/waits with
    the picker, then **Upload to daemon**.
 4. **Generate tests.** In Claude Code: `/trace2e <flow-name>` (omit the name for the latest).
@@ -67,24 +70,24 @@ Hosted (shared): see **`DEPLOY.md`** and **`deploy/digitalocean/`** — a contai
 
 | Path | What it is |
 |------|-----------|
+| `client` | **Light Go client** (`init` + MCP bridge) — the release binary users install |
 | `packages/schema` | Shared `Trace` types + zero-dep validator (producer/consumer contract) |
-| `daemon` | Node process + `trace2e` CLI: HTTP API, MCP server, dashboard, file store |
+| `daemon` | The **server**: HTTP API, MCP source, dashboard, file store (Node/container) |
 | `extension` | WXT Manifest V3 Chrome extension: recorder, element picker, side panel |
 | `.claude/commands/trace2e.md` | Slash command that reads a trace via MCP and writes specs |
 
-## CLI reference
+## Client CLI (the release binary)
 
 | Command | What it does |
 |---------|--------------|
-| `trace2e init [--token <t>] [--url <daemon>]` | Scaffold `.mcp.json` + `/trace2e` command. With `--token`/`--url` it's **client mode** (MCP → a hosted daemon, URL defaults to the shared one). Merges into an existing `.mcp.json`. |
-| `trace2e mcp` | MCP server on stdio — what Claude Code launches. Reads from the local store, or a hosted daemon when `TRACE2E_REMOTE_URL` is set. |
-| `trace2e serve` | Run the HTTP API + dashboard (local recording, or as the hosted daemon). |
-| `trace2e token` | Print the access token. |
-| `trace2e list` | List recorded traces. |
-| `trace2e sample` | Load a sample signup flow (username/password) into the store. |
+| `trace2e init [--token <t>] [--url <daemon>]` | Scaffold `.mcp.json` + `/trace2e` command into the current project, pointing the MCP server at the daemon (URL defaults to the shared one). Merges into an existing `.mcp.json`. |
+| `trace2e mcp` | MCP server on stdio that Claude Code launches; forwards trace reads to the daemon (`TRACE2E_REMOTE_URL` + `TRACE2E_TOKEN`). |
+| `trace2e list` | List traces on the daemon. |
 
-Run it as `node trace2e.mjs <cmd>` from a release, or build a local binary with `pnpm binary`
-(unshipped, ~90 MB) if you truly need a no-Node executable.
+## Server CLI (the daemon)
+
+For running/operating the daemon itself: `serve` (HTTP API + dashboard), `token`, `list`,
+`sample`, `mcp`. See `DEPLOY.md`.
 
 ## Build from source
 

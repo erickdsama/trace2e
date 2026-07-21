@@ -30,3 +30,8 @@ daemon/src/embedded.ts
 
 # SEA binary build temp
 build-sea/
+
+# Local Go client build outputs
+/client/trace2e
+/client/trace2e-*
+/release/
