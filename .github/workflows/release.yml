@@ -18,8 +18,6 @@ jobs:
         include:
           - os: ubuntu-latest
             asset: trace2e-linux-x64
-          - os: macos-13
-            asset: trace2e-darwin-x64
           - os: macos-14
             asset: trace2e-darwin-arm64
     runs-on: ${{ matrix.os }}

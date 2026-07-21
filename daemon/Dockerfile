@@ -11,6 +11,7 @@ RUN pnpm install --frozen-lockfile
 # Sources
 COPY packages/schema packages/schema
 COPY daemon daemon
+COPY scripts scripts
 RUN pnpm --filter @trace2e/schema build && pnpm --filter @trace2e/daemon build
 
 FROM node:20-alpine AS runtime
