@@ -1,12 +1,12 @@
 # trace2e — record a browser flow, generate Playwright tests
 
-No build step. You only need **Node.js 18+** and **Google Chrome**.
+No build step. You need **Node.js 18+** and **Google Chrome**.
 
 ## What's in this folder
 
-- `bin/trace2e.mjs` — the whole tool in one file (recorder server + MCP server for Claude Code)
+- `bin/trace2e.mjs` — the CLI (client + optional local daemon), one file
 - `extension/` — the Chrome extension (the recorder UI)
-- `setup.sh` — one command that wires everything into your project
+- `setup.sh` — one command that wires the `/trace2e` command + MCP into your project
 - `templates/` — used by setup (don't touch)
 
 ## Setup (once per project)
@@ -17,41 +17,53 @@ From inside the project you want tests for:
 /path/to/trace2e-use/setup.sh
 ```
 
-That registers the `/trace2e` command + MCP server for Claude Code in this folder, prints
-your access token, and tells you where to load the extension.
+That registers the `/trace2e` command + MCP server for Claude Code in this folder, and prints
+next steps.
 
 Load the extension once: `chrome://extensions` → **Developer mode** → **Load unpacked** →
-select this folder's `extension/`. Open the side panel (click the icon), expand **Settings**,
-paste the token.
+select this folder's `extension/`. Open the side panel (click the icon), expand **Settings**.
+
+## Two ways to run
+
+### A. Use a shared/hosted daemon (recommended)
+
+The extension's **Daemon URL is pre-filled** with the hosted daemon — you only paste your
+**token** in Settings and Save. To make Claude Code read from that same daemon:
+
+```bash
+node /path/to/trace2e-use/bin/trace2e.mjs init --token <your-token>
+#   override the daemon with:  --url https://your-daemon
+```
+
+### B. Run the daemon locally
+
+```bash
+node /path/to/trace2e-use/bin/trace2e.mjs serve     # API + dashboard on http://127.0.0.1:8787
+node /path/to/trace2e-use/bin/trace2e.mjs token     # token to paste into the extension
+```
+Then set the extension's Daemon URL to `http://127.0.0.1:8787`.
 
 ## Everyday use
 
-```bash
-# 1. start the recorder server (leave running while you record)
-node /path/to/trace2e-use/bin/trace2e.mjs serve
+1. In Chrome: name the flow → **● Record** → do the actions (password/one-time-code fields
+   are auto-hidden — real values are never saved) → add checkpoints/waits with the picker →
+   **Upload to daemon**.
+2. In Claude Code, in your project: `/trace2e` — generates a Playwright test from the latest
+   recording (or `/trace2e <flow-name>`).
 
-# 2. in Chrome: name the flow → ● Record → do the actions → Stop → Upload to daemon
-#    (password / one-time-code fields are auto-hidden — real values are never saved)
-
-# 3. in Claude Code, in your project:
-/trace2e                 # generates a Playwright test from the latest recording
-```
+You can also browse recordings in the daemon's **dashboard** at its URL (`/`).
 
 ## Commands
 
 | Command | Does |
 |---------|------|
-| `node bin/trace2e.mjs serve` | Run the recorder server (needed while recording) |
-| `node bin/trace2e.mjs token` | Print the token to paste into the extension |
-| `node bin/trace2e.mjs list`  | List recorded flows |
-| `node bin/trace2e.mjs init`  | Re-register the /trace2e command in the current project |
+| `node bin/trace2e.mjs init --token <t>` | Set up the /trace2e command + MCP → the hosted daemon |
+| `node bin/trace2e.mjs serve` | Run a local daemon (API + dashboard) |
+| `node bin/trace2e.mjs token` | Print the local token |
+| `node bin/trace2e.mjs list` | List recorded flows |
 
-Recordings are stored on your machine at `~/.trace2e` — nothing is sent anywhere else.
-
-## Optional: a shorter command
-
-To type `trace2e` instead of `node …/bin/trace2e.mjs`, add an alias:
+## Optional: shorter command
 
 ```bash
-echo 'alias trace2e="node /path/to/trace2e-use/bin/trace2e.mjs"' >> ~/.zshrc && source ~/.zshrc
+alias trace2e="node /path/to/trace2e-use/bin/trace2e.mjs"
 ```
