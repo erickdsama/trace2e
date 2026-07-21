@@ -43,6 +43,27 @@ TRACE2E_TOKEN=$(openssl rand -hex 24) \
 cd /opt/trace2e && docker compose pull && docker compose up -d
 ```
 
+## Using the CI-built image (recommended)
+
+`.github/workflows/publish.yml` builds and pushes the image to GHCR on every push to
+`main` and on `vX.Y.Z` tags. Deploy that published image without building locally:
+
+```bash
+# make the GHCR package public (Repo → Packages → trace2e-daemon → visibility), then:
+NO_BUILD=1 IMAGE=ghcr.io/erickdsama/trace2e-daemon:latest \
+DOMAIN=trace2e.example.com TRACE2E_TOKEN=$(openssl rand -hex 24) \
+./deploy.sh <droplet-ip>
+```
+
+If you keep the package private, let the droplet authenticate with a GitHub token that has
+`read:packages`:
+
+```bash
+NO_BUILD=1 IMAGE=ghcr.io/erickdsama/trace2e-daemon:latest \
+REGISTRY_USER=erickdsama REGISTRY_PASSWORD=<gh-pat-with-read:packages> \
+TRACE2E_TOKEN=$(openssl rand -hex 24) ./deploy.sh <droplet-ip>
+```
+
 ## Key env vars
 
 | Var | Meaning |
