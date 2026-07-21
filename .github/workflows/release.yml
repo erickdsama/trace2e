@@ -1,7 +1,8 @@
 name: Release
 
-# On a vX.Y.Z tag: build standalone `trace2e` binaries (no Node needed) for Linux and
-# macOS, build the turnkey use-package, and attach them all to the GitHub Release.
+# On a vX.Y.Z tag: build the lightweight client artifacts and attach them to the Release.
+# The client only needs Node (which Claude Code users already have), so we ship the small
+# JS bundle instead of a 90 MB self-contained binary.
 
 on:
   push:
@@ -12,33 +13,7 @@ permissions:
   contents: write
 
 jobs:
-  binaries:
-    strategy:
-      matrix:
-        include:
-          - os: ubuntu-latest
-            asset: trace2e-linux-x64
-          - os: macos-14
-            asset: trace2e-darwin-arm64
-    runs-on: ${{ matrix.os }}
-    steps:
-      - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm --filter @trace2e/schema build
-      - name: Build binary
-        run: OUT="dist/bin/${{ matrix.asset }}" node scripts/build-binary.mjs
-      - uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset }}
-          path: dist/bin/${{ matrix.asset }}
-
   release:
-    needs: binaries
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -48,27 +23,27 @@ jobs:
           node-version: 20
           cache: pnpm
       - run: pnpm install --frozen-lockfile
-      - name: Build turnkey package
-        run: pnpm dist
-      - uses: actions/download-artifact@v4
-        with:
-          path: artifacts
+      - run: pnpm dist
       - name: Collect release assets
         run: |
           mkdir -p release
           cp dist/trace2e-use.tgz release/
-          find artifacts -type f -exec cp {} release/ \;
+          cp dist/trace2e-use/bin/trace2e.mjs release/trace2e.mjs
+          chmod +x release/trace2e.mjs
           ls -lh release
       - uses: softprops/action-gh-release@v2
         with:
           files: release/*
           generate_release_notes: true
           body: |
-            Standalone `trace2e` client binaries (no Node required) and the turnkey
-            `trace2e-use.tgz` package.
+            Lightweight trace2e client — needs Node 18+.
 
-            Install the client in a project:
-            ```
-            ./trace2e-<os>-<arch> init --token <your-token>
-            ```
-            (Daemon URL defaults to the hosted daemon; override with `--url`.)
+            - **trace2e.mjs** (~750 KB) — single-file CLI. Set up a project:
+              ```
+              node trace2e.mjs init --token <your-token>
+              ```
+              (Daemon URL defaults to the hosted daemon; override with `--url`.)
+            - **trace2e-use.tgz** — turnkey package (Chrome extension + the CLI).
+
+            Prefer a no-Node binary? `pnpm binary` builds one locally (it's ~90 MB — Node
+            embedded — so it's not shipped here).
