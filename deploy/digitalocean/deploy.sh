@@ -105,14 +105,17 @@ cd "$APP_DIR"
 docker compose pull
 docker compose up -d
 
-# --- verify ---
-say "Verifying /health…"
+# --- verify (from inside the container, so it works whether or not 8787 is published) ---
+say "Verifying the daemon…"
 ok=""
 for _ in $(seq 1 20); do
-  curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1 && { ok=1; break; }
+  docker compose exec -T trace2e wget -qO- http://127.0.0.1:8787/health >/dev/null 2>&1 && { ok=1; break; }
   sleep 2
 done
 [ -n "$ok" ] || { echo "Daemon did not become healthy. Check: cd $APP_DIR && docker compose logs" >&2; exit 1; }
+if [ -n "${DOMAIN:-}" ]; then
+  echo "   Caddy is obtaining a TLS certificate for $DOMAIN — give it a few seconds on first run."
+fi
 
 cat <<DONE
 
