@@ -1,86 +1,66 @@
 # Deploy the trace2e daemon to a DigitalOcean droplet
 
-Production pattern: **build the image once, push it to a container registry, and the droplet
-pulls and runs it.** No source or build tools ever go on the droplet — `deploy.sh` only
-writes a `docker-compose.yml` (and a Caddyfile for HTTPS) there.
+`deploy.sh` runs **on the droplet**. It installs Docker (if missing), pulls the CI-published
+image from GHCR, and runs it — behind Caddy for automatic HTTPS when you set `DOMAIN`. No
+source or build tools touch the box; it only pulls the image and writes a compose file.
 
 ```
-local:  docker build ─▶ docker push ─▶ registry
-droplet:                          registry ─▶ docker compose pull ─▶ run (behind Caddy TLS)
+GitHub Actions ─build─▶ ghcr.io/erickdsama/trace2e-daemon
+droplet: ./deploy.sh ─▶ docker compose pull ─▶ run (Caddy TLS)
 ```
 
-## Prerequisites
+## Create the droplet
 
-- Local: `docker`, logged in to your registry
-  - DigitalOcean Container Registry: `doctl registry login`
-  - Docker Hub: `docker login`
-- `doctl` authenticated (only if you want the script to create the droplet)
-- An SSH key already added to your DO account (for droplet creation)
-- A domain with an A record pointing at the droplet (for HTTPS)
+Any Ubuntu droplet works; the **Docker** Marketplace image saves the install step. Add your
+SSH key, then SSH in as root.
 
-## Examples
+## Run it on the droplet
 
-**Existing droplet, DigitalOcean Container Registry, HTTPS:**
+**Manual (after `git clone` or copying the file):**
 ```bash
-DOCR=my-registry \
-DO_TOKEN=dop_v1_xxx \
-DOMAIN=trace2e.example.com \
-TRACE2E_TOKEN=$(openssl rand -hex 24) \
-ALLOWED_ORIGIN=chrome-extension://jbbacjmlabncoinbnddpgcjgjkomeknp \
-./deploy.sh 203.0.113.10
+TRACE2E_TOKEN=$(openssl rand -hex 24) DOMAIN=trace2e.example.com ./deploy.sh
 ```
 
-**Provision a new droplet + Docker Hub public image + plain HTTP (quick test):**
+**One-liner, straight from GitHub (no clone):**
 ```bash
-IMAGE=docker.io/me/trace2e-daemon:latest \
-CREATE=1 DO_SSH_KEY=my-key \
-TRACE2E_TOKEN=$(openssl rand -hex 24) \
-./deploy.sh
+curl -fsSL https://raw.githubusercontent.com/erickdsama/trace2e/main/deploy/digitalocean/deploy.sh \
+  | sudo TRACE2E_TOKEN=$(openssl rand -hex 24) DOMAIN=trace2e.example.com bash
 ```
 
-**Redeploy after a code change:** rebuild+push and re-run the same command, or on the droplet:
+**As cloud-init / droplet "user data"** (runs at first boot): paste the script with the env
+vars set inline at the top, e.g.
+```bash
+#!/usr/bin/env bash
+export TRACE2E_TOKEN=REPLACE_ME DOMAIN=trace2e.example.com
+curl -fsSL https://raw.githubusercontent.com/erickdsama/trace2e/main/deploy/digitalocean/deploy.sh | bash
+```
+
+## Pin a released version
+```bash
+TAG=0.1.0 TRACE2E_TOKEN=… DOMAIN=… ./deploy.sh    # runs ghcr.io/erickdsama/trace2e-daemon:0.1.0
+```
+
+## Env vars
+
+| Var | Meaning |
+|-----|---------|
+| `TRACE2E_TOKEN` | shared access token (auto-generated + printed if unset) |
+| `DOMAIN` | enables Caddy automatic HTTPS (point the A record at the droplet first) |
+| `TAG` / `IMAGE` | version to run (default `ghcr.io/erickdsama/trace2e-daemon:latest`) |
+| `ALLOWED_ORIGIN` | lock CORS to your extension id |
+| `GH_PAT` / `GH_USER` | pull a **private** GHCR image (token needs `read:packages`) |
+
+If you keep the GHCR package **public** (repo → Packages → visibility), no token is needed.
+
+## Update later
 ```bash
 cd /opt/trace2e && docker compose pull && docker compose up -d
 ```
 
-## Using the CI-built image (recommended)
-
-`.github/workflows/publish.yml` builds and pushes the image to GHCR on every push to
-`main` and on `vX.Y.Z` tags. Deploy that published image without building locally:
-
-```bash
-# make the GHCR package public (Repo → Packages → trace2e-daemon → visibility), then:
-NO_BUILD=1 IMAGE=ghcr.io/erickdsama/trace2e-daemon:latest \
-DOMAIN=trace2e.example.com TRACE2E_TOKEN=$(openssl rand -hex 24) \
-./deploy.sh <droplet-ip>
-```
-
-If you keep the package private, let the droplet authenticate with a GitHub token that has
-`read:packages`:
-
-```bash
-NO_BUILD=1 IMAGE=ghcr.io/erickdsama/trace2e-daemon:latest \
-REGISTRY_USER=erickdsama REGISTRY_PASSWORD=<gh-pat-with-read:packages> \
-TRACE2E_TOKEN=$(openssl rand -hex 24) ./deploy.sh <droplet-ip>
-```
-
-## Key env vars
-
-| Var | Meaning |
-|-----|---------|
-| `IMAGE` / `DOCR` | image ref to build/push/run (or a DOCR registry name to derive it) |
-| `TRACE2E_TOKEN` | shared access token (auto-generated + printed if unset) |
-| `DOMAIN` | enables Caddy automatic HTTPS |
-| `ALLOWED_ORIGIN` | lock CORS to your extension id |
-| `DO_TOKEN` | lets the droplet pull from a private DOCR |
-| `REGISTRY_USER` / `REGISTRY_PASSWORD` | droplet login for any other private registry |
-| `NO_BUILD=1` | skip local build/push (image already published, e.g. from CI) |
-| `CREATE=1` + `DO_SSH_KEY` | provision the droplet first |
-
-See `../../DEPLOY.md` for wiring the extension and Claude Code to the deployed URL.
+See `../../DEPLOY.md` for pointing the extension and Claude Code at the deployed URL.
 
 ## Note on the "web"
 
-Only the **daemon** is hosted here. The extension (the client) isn't a server — it's
-distributed via the Chrome Web Store or the `dist/trace2e-use.tgz` package, and each user
-points it at this daemon's URL in the side panel Settings.
+Only the **daemon** is hosted here. The extension (client) isn't a server — it's distributed
+via the Chrome Web Store or `dist/trace2e-use.tgz`, and each user points it at this daemon's
+URL in the side panel Settings.

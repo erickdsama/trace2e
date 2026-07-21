@@ -1,127 +1,68 @@
 #!/usr/bin/env bash
 #
-# Deploy the trace2e daemon to a DigitalOcean droplet — production pattern.
+# Provision the trace2e daemon ON a DigitalOcean droplet (run this on the droplet, as root).
 #
-# The image is built once locally (or in CI), pushed to a container registry, and the
-# droplet only PULLS and runs it. No source code or build toolchain ever touches the box;
-# only a docker-compose.yml (and a Caddyfile for TLS) is written there.
+# It installs Docker if needed, pulls the CI-published image from GHCR, and runs it — behind
+# Caddy for automatic HTTPS when DOMAIN is set. No source or build toolchain touches the box;
+# it only pulls the image and writes a compose file. Re-run any time to update.
 #
-# Prereqs (local):
-#   - docker, logged in to your registry:
-#       DigitalOcean:  doctl registry login
-#       Docker Hub:    docker login
-#   - to provision a droplet: doctl authenticated + an SSH key in your DO account
+# On a fresh Ubuntu droplet:
+#   # 1) manual:
+#   TRACE2E_TOKEN=$(openssl rand -hex 24) DOMAIN=trace2e.example.com ./deploy.sh
 #
-# Usage:
-#   # DigitalOcean Container Registry, deploy to an existing droplet:
-#   DOCR=my-registry TRACE2E_TOKEN=$(openssl rand -hex 24) DO_TOKEN=dop_v1_… \
-#     ./deploy.sh 203.0.113.10
+#   # 2) straight from GitHub (no clone):
+#   curl -fsSL https://raw.githubusercontent.com/erickdsama/trace2e/main/deploy/digitalocean/deploy.sh \
+#     | sudo TRACE2E_TOKEN=$(openssl rand -hex 24) DOMAIN=trace2e.example.com bash
 #
-#   # Any registry (public image) + provision a droplet + HTTPS:
-#   IMAGE=docker.io/me/trace2e-daemon:latest DOMAIN=trace2e.example.com \
-#     CREATE=1 DO_SSH_KEY=my-key TRACE2E_TOKEN=$(openssl rand -hex 24) ./deploy.sh
+#   # 3) as a droplet "user data" (cloud-init) script — same body with the env vars set inline.
 #
 # Env:
-#   IMAGE           full image ref to build/push/run (e.g. docker.io/me/trace2e-daemon:latest)
-#   DOCR            DigitalOcean Container Registry name → derives IMAGE and enables droplet login
-#   TAG             image tag when using DOCR                     [latest]
-#   TRACE2E_TOKEN   required — shared access token (generated + printed if unset)
-#   DOMAIN          optional — Caddy HTTPS (point the DNS A record at the droplet first)
+#   TRACE2E_TOKEN   shared access token (generated + printed if unset)
+#   DOMAIN          optional — Caddy HTTPS (point the domain's A record at this droplet first)
+#   TAG             image tag to run                                [latest]
+#   IMAGE           full image ref                    [ghcr.io/erickdsama/trace2e-daemon:$TAG]
 #   ALLOWED_ORIGIN  optional — chrome-extension://<id> to lock CORS
-#   NO_BUILD=1      skip local build+push (image already in the registry)
-#   DO_TOKEN        (DOCR) DO API token so the droplet can pull from a private DOCR
-#   REGISTRY_USER / REGISTRY_PASSWORD   (generic private registry) droplet login creds
-#   CREATE=1        provision a new droplet via doctl (else pass an existing IP as $1)
-#   DO_SSH_KEY, DO_NAME, DO_REGION, DO_SIZE, DO_IMAGE   droplet creation options
-#   SSH_USER [root], SSH_KEY_PATH
+#   GH_PAT / GH_USER  GitHub token (read:packages) + user, if the GHCR package is private
 set -euo pipefail
 
-REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-REMOTE_DIR="/opt/trace2e"
-SSH_USER="${SSH_USER:-root}"
-DO_NAME="${DO_NAME:-trace2e-daemon}"
-DO_REGION="${DO_REGION:-nyc1}"
-DO_SIZE="${DO_SIZE:-s-1vcpu-1gb}"
-DO_DROPLET_IMAGE="${DO_IMAGE:-docker-20-04}"   # Marketplace image with Docker preinstalled
+[ "$(id -u)" = "0" ] || { echo "Run as root (use sudo)." >&2; exit 1; }
 
+IMAGE="${IMAGE:-ghcr.io/erickdsama/trace2e-daemon:${TAG:-latest}}"
+APP_DIR="/opt/trace2e"
 say() { printf '\n\033[1;34m▶ %s\033[0m\n' "$*"; }
-die() { printf '\033[1;31m✖ %s\033[0m\n' "$*" >&2; exit 1; }
 
-SSH_OPTS=(-o StrictHostKeyChecking=accept-new -o ConnectTimeout=10)
-[ -n "${SSH_KEY_PATH:-}" ] && SSH_OPTS+=(-i "$SSH_KEY_PATH")
-ssh_do() { ssh "${SSH_OPTS[@]}" "$SSH_USER@$IP" "$@"; }
-
-# --- resolve image ref ---
-if [ -n "${DOCR:-}" ]; then
-  IMAGE="registry.digitalocean.com/${DOCR}/trace2e-daemon:${TAG:-latest}"
-fi
-[ -n "${IMAGE:-}" ] || die "Set IMAGE=<registry>/<repo>:<tag> (or DOCR=<registry-name>)."
-
-# --- token ---
 if [ -z "${TRACE2E_TOKEN:-}" ]; then
-  TRACE2E_TOKEN="$(openssl rand -hex 24)"
-  say "Generated TRACE2E_TOKEN: $TRACE2E_TOKEN  (save it — you paste it into the extension)"
+  TRACE2E_TOKEN="$(openssl rand -hex 24 2>/dev/null || head -c18 /dev/urandom | od -An -tx1 | tr -d ' \n')"
+  say "Generated TRACE2E_TOKEN: $TRACE2E_TOKEN  (save it — paste into the extension)"
 fi
 
-# --- build + push the image (local/CI), unless it's already published ---
-if [ "${NO_BUILD:-}" != "1" ]; then
-  command -v docker >/dev/null || die "docker not found locally (needed to build/push the image)."
-  say "Building image $IMAGE …"
-  docker build -f "$REPO_ROOT/daemon/Dockerfile" -t "$IMAGE" "$REPO_ROOT"
-  say "Pushing $IMAGE (make sure you're logged in: 'doctl registry login' or 'docker login') …"
-  docker push "$IMAGE"
-else
-  say "NO_BUILD=1 — using already-published $IMAGE"
+# --- Docker ---
+if ! command -v docker >/dev/null 2>&1; then
+  say "Installing Docker…"
+  curl -fsSL https://get.docker.com | sh
+fi
+systemctl enable --now docker >/dev/null 2>&1 || true
+
+# --- private GHCR pull auth (optional) ---
+if [[ "$IMAGE" == ghcr.io/* ]] && [ -n "${GH_PAT:-}" ]; then
+  say "Logging in to GHCR…"
+  echo "$GH_PAT" | docker login ghcr.io -u "${GH_USER:-erickdsama}" --password-stdin
 fi
 
-# --- resolve target droplet ---
-if [ "${CREATE:-}" = "1" ]; then
-  command -v doctl >/dev/null || die "doctl not found. Install it and run 'doctl auth init'."
-  [ -n "${DO_SSH_KEY:-}" ] || die "CREATE=1 requires DO_SSH_KEY (an SSH key already in your DO account)."
-  say "Creating droplet '$DO_NAME' ($DO_SIZE, $DO_REGION)…"
-  doctl compute droplet create "$DO_NAME" \
-    --region "$DO_REGION" --size "$DO_SIZE" --image "$DO_DROPLET_IMAGE" \
-    --ssh-keys "$DO_SSH_KEY" --wait >/dev/null
-  IP="$(doctl compute droplet get "$DO_NAME" --format PublicIPv4 --no-header)"
-  [ -n "$IP" ] || die "Could not determine droplet IP."
-  say "Droplet ready at $IP"
-else
-  IP="${1:-}"
-  [ -n "$IP" ] || die "Pass the droplet IP as \$1, or set CREATE=1 to provision one."
-fi
+# --- public IP (for the printed URL when there's no domain) ---
+PUBLIC_IP="$(curl -fsS --max-time 3 http://169.254.169.254/metadata/v1/interfaces/public/0/ipv4/address 2>/dev/null || true)"
+[ -z "$PUBLIC_IP" ] && PUBLIC_IP="$(curl -fsS --max-time 3 https://ifconfig.me 2>/dev/null || hostname -I | awk '{print $1}')"
 
-# --- wait for SSH ---
-say "Waiting for SSH on $IP…"
-for i in $(seq 1 30); do
-  ssh_do true 2>/dev/null && break
-  [ "$i" = 30 ] && die "SSH did not come up on $IP."
-  sleep 5
-done
-
-# --- ensure Docker on the droplet ---
-say "Ensuring Docker is installed…"
-ssh_do 'command -v docker >/dev/null || curl -fsSL https://get.docker.com | sh'
-
-# --- registry auth on the droplet (only needed for private images) ---
-if [ -n "${DOCR:-}" ] && [ -n "${DO_TOKEN:-}" ]; then
-  say "Logging the droplet in to DigitalOcean Container Registry…"
-  ssh_do "docker login registry.digitalocean.com -u '$DO_TOKEN' --password-stdin <<<'$DO_TOKEN'"
-elif [ -n "${REGISTRY_USER:-}" ] && [ -n "${REGISTRY_PASSWORD:-}" ]; then
-  REG_HOST="${IMAGE%%/*}"
-  say "Logging the droplet in to $REG_HOST…"
-  ssh_do "docker login '$REG_HOST' -u '$REGISTRY_USER' --password-stdin <<<'$REGISTRY_PASSWORD'"
-fi
-
-# --- write compose (+ Caddy for TLS if DOMAIN is set) — references the image, no build ---
-say "Writing the stack on the droplet…"
-ssh_do "mkdir -p $REMOTE_DIR"
+# --- write the stack ---
+say "Writing the stack to $APP_DIR…"
+mkdir -p "$APP_DIR"
 if [ -n "${DOMAIN:-}" ]; then
-  ssh_do "cat > $REMOTE_DIR/Caddyfile" <<CADDY
+  cat > "$APP_DIR/Caddyfile" <<CADDY
 $DOMAIN {
   reverse_proxy trace2e:8787
 }
 CADDY
-  ssh_do "cat > $REMOTE_DIR/docker-compose.yml" <<COMPOSE
+  cat > "$APP_DIR/docker-compose.yml" <<COMPOSE
 services:
   trace2e:
     image: "${IMAGE}"
@@ -143,7 +84,7 @@ volumes: { trace2e-data: {}, caddy-data: {}, caddy-config: {} }
 COMPOSE
   PUBLIC_URL="https://$DOMAIN"
 else
-  ssh_do "cat > $REMOTE_DIR/docker-compose.yml" <<COMPOSE
+  cat > "$APP_DIR/docker-compose.yml" <<COMPOSE
 services:
   trace2e:
     image: "${IMAGE}"
@@ -155,30 +96,36 @@ services:
     volumes: [ "trace2e-data:/data" ]
 volumes: { trace2e-data: {} }
 COMPOSE
-  PUBLIC_URL="http://$IP:8787"
+  PUBLIC_URL="http://${PUBLIC_IP:-<droplet-ip>}:8787"
 fi
 
 # --- pull + run ---
-say "Pulling the image and starting the daemon…"
-ssh_do "cd $REMOTE_DIR && docker compose pull && docker compose up -d"
+say "Pulling $IMAGE and starting…"
+cd "$APP_DIR"
+docker compose pull
+docker compose up -d
 
 # --- verify ---
 say "Verifying /health…"
-ssh_do "for i in \$(seq 1 20); do curl -fsS http://127.0.0.1:8787/health && break || sleep 2; done" \
-  || die "Daemon did not become healthy — check 'docker compose logs' on the droplet."
+ok=""
+for _ in $(seq 1 20); do
+  curl -fsS http://127.0.0.1:8787/health >/dev/null 2>&1 && { ok=1; break; }
+  sleep 2
+done
+[ -n "$ok" ] || { echo "Daemon did not become healthy. Check: cd $APP_DIR && docker compose logs" >&2; exit 1; }
 
 cat <<DONE
 
-✅ trace2e daemon deployed (image: $IMAGE)
+✅ trace2e daemon running (image: $IMAGE)
 
   URL:    $PUBLIC_URL
   Token:  $TRACE2E_TOKEN
 
-Redeploy a new version later:  rebuild+push the image, then re-run this script
-(or on the droplet: cd $REMOTE_DIR && docker compose pull && docker compose up -d).
+Update later:   cd $APP_DIR && docker compose pull && docker compose up -d
+Logs:           cd $APP_DIR && docker compose logs -f
 
 Next:
   • Extension → Settings → Daemon URL = $PUBLIC_URL, Token = above → Save.
   • Claude Code → .mcp.json env: TRACE2E_REMOTE_URL=$PUBLIC_URL, TRACE2E_TOKEN=… (see DEPLOY.md).
-$( [ -z "${DOMAIN:-}" ] && echo "  ⚠ No DOMAIN — plain HTTP. For real use set DOMAIN (DNS A record → $IP) and re-run for HTTPS." )
+$( [ -z "${DOMAIN:-}" ] && echo "  ⚠ No DOMAIN — plain HTTP. For real use set DOMAIN (A record → ${PUBLIC_IP:-this droplet}) and re-run for HTTPS." )
 DONE
