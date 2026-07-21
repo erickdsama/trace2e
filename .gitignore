@@ -1,0 +1,26 @@
+node_modules/
+dist/
+.output/
+.wxt/
+*.log
+
+# Secrets — never commit
+.env
+.env.*
+!.env.example
+
+# Local trace mirror (canonical store lives in ~/.trace2e)
+traces/
+
+# Playwright
+/test-results/
+/playwright-report/
+/blob-report/
+/.playwright/
+
+# Extension signing key — keep private, never commit
+*.pem
+extension/key.pem
+
+# Local Claude Code settings (keep the shared /trace2e command, not personal settings)
+.claude/settings.local.json

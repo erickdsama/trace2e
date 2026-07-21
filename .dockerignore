@@ -1,0 +1,13 @@
+**/node_modules
+**/dist
+**/.output
+**/.wxt
+extension
+tests
+dist
+playwright-report
+test-results
+*.pem
+.env
+.env.*
+.git

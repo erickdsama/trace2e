@@ -1,0 +1,20 @@
+# Run the hosted trace2e daemon locally or on a server.
+#   TRACE2E_TOKEN=$(openssl rand -hex 24) docker compose up --build
+services:
+  trace2e:
+    build:
+      context: .
+      dockerfile: daemon/Dockerfile
+    image: trace2e-daemon
+    restart: unless-stopped
+    ports:
+      - "8787:8787"
+    environment:
+      TRACE2E_TOKEN: ${TRACE2E_TOKEN:?set TRACE2E_TOKEN to a strong secret}
+      # Lock CORS to your published extension id in production, e.g.:
+      # TRACE2E_ALLOWED_ORIGIN: chrome-extension://abcdefghijklmnopabcdefghijklmnop
+    volumes:
+      - trace2e-data:/data
+
+volumes:
+  trace2e-data:

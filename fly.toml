@@ -1,0 +1,32 @@
+# Fly.io deployment for the trace2e daemon.
+#   fly launch --no-deploy            # create the app (or edit `app` below)
+#   fly volumes create trace2e_data --size 1
+#   fly secrets set TRACE2E_TOKEN=$(openssl rand -hex 24)
+#   fly deploy
+app = "trace2e-daemon"
+primary_region = "iad"
+
+[build]
+  dockerfile = "daemon/Dockerfile"
+
+[env]
+  TRACE2E_HOST = "0.0.0.0"
+  TRACE2E_PORT = "8787"
+  TRACE2E_HOME = "/data"
+
+[[mounts]]
+  source = "trace2e_data"
+  destination = "/data"
+
+[http_service]
+  internal_port = 8787
+  force_https = true
+  auto_stop_machines = true
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    method = "get"
+    path = "/health"
+    interval = "30s"
+    timeout = "3s"

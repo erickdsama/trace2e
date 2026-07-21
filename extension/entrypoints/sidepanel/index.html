@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>trace2e</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <header>
+      <h1>trace2e</h1>
+      <span id="status" class="status idle">idle</span>
+    </header>
+
+    <section class="controls">
+      <input id="flowName" type="text" placeholder="flow name, e.g. login-with-otp" />
+      <div class="row">
+        <button id="btnStart">● Record</button>
+        <button id="btnPause" disabled>Pause</button>
+        <button id="btnStop" disabled>Stop</button>
+        <button id="btnReset" class="ghost">Reset</button>
+      </div>
+    </section>
+
+    <section class="steps">
+      <h2>Steps <span id="stepCount" class="muted">(0)</span></h2>
+      <ol id="stepList"></ol>
+    </section>
+
+    <section class="checkpoints">
+      <h2>Checkpoints &amp; waits</h2>
+      <div class="row wrap">
+        <button id="btnAssertUrl">Assert URL</button>
+        <button id="btnAssertVisible">Assert element…</button>
+        <button id="btnAssertText">Assert text…</button>
+        <button id="btnWaitEl">Wait for element…</button>
+        <button id="btnWaitUrl">Wait for URL</button>
+      </div>
+      <div class="row">
+        <input id="delayMs" type="number" min="0" step="100" placeholder="delay in ms, e.g. 1000" />
+        <button id="btnAddDelay">Add delay</button>
+      </div>
+      <p id="pickHint" class="muted"></p>
+    </section>
+
+    <section class="insert">
+      <h2>Insert custom step</h2>
+      <select id="customType">
+        <option value="assert">assertion</option>
+        <option value="customJs">custom JS (page.evaluate)</option>
+        <option value="hook:before">before hook</option>
+        <option value="hook:after">after hook</option>
+      </select>
+      <textarea id="customBody" rows="3" placeholder="code, or for assert: expected text"></textarea>
+      <input id="customTarget" type="text" placeholder="assert only: locator e.g. getByRole('heading', { name: 'Welcome' })" />
+      <button id="btnAddCustom">Add step</button>
+    </section>
+
+    <section class="upload">
+      <button id="btnUpload" class="primary">Upload to daemon</button>
+      <p id="uploadResult" class="muted"></p>
+    </section>
+
+    <details class="settings">
+      <summary>Settings</summary>
+      <label>Daemon URL <input id="daemonUrl" type="text" /></label>
+      <label>Ingest token <input id="token" type="password" placeholder="paste from daemon startup log" /></label>
+      <button id="btnSaveSettings">Save</button>
+    </details>
+
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

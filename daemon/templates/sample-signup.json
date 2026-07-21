@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "id": "sample",
+  "name": "signup",
+  "createdAt": "",
+  "startUrl": "https://app.example.com/signup",
+  "viewport": { "width": 1440, "height": 869 },
+  "variables": [
+    { "name": "FULL_NAME", "kind": "data", "source": "generated", "note": "unique per run to avoid collisions" },
+    { "name": "USERNAME", "kind": "data", "source": "generated", "note": "signup email; make it unique" },
+    { "name": "PASSWORD", "kind": "secret", "source": "env" }
+  ],
+  "steps": [
+    { "id": "s1", "type": "navigate", "url": "https://app.example.com/signup", "ts": 1 },
+    { "id": "s2", "type": "fill", "target": { "primary": "getByLabel('Full name')", "fallbacks": ["getByPlaceholder('Jane Doe')"] }, "variableRef": "FULL_NAME", "ts": 2 },
+    { "id": "s3", "type": "fill", "target": { "primary": "getByLabel('Email')", "fallbacks": ["getByPlaceholder('you@company.com')"] }, "variableRef": "USERNAME", "ts": 3 },
+    { "id": "s4", "type": "fill", "target": { "primary": "getByLabel('Password')", "fallbacks": [] }, "variableRef": "PASSWORD", "ts": 4 },
+    { "id": "s5", "type": "fill", "target": { "primary": "getByLabel('Confirm password')", "fallbacks": [] }, "variableRef": "PASSWORD", "ts": 5 },
+    { "id": "s6", "type": "click", "target": { "primary": "getByRole('checkbox', { name: 'I agree to the Terms' })", "fallbacks": ["getByLabel('I agree to the Terms')"] }, "ts": 6 },
+    { "id": "s7", "type": "click", "target": { "primary": "getByRole('button', { name: 'Create account' })", "fallbacks": [] }, "ts": 7 },
+    { "id": "s8", "type": "waitFor", "url": "https://app.example.com/welcome", "ts": 8 },
+    { "id": "s9", "type": "assert", "kind": "url", "expected": "https://app.example.com/welcome", "ts": 9 },
+    { "id": "s10", "type": "assert", "kind": "text", "target": { "primary": "getByRole('heading', { name: 'Welcome' })", "fallbacks": [] }, "expected": "Welcome", "ts": 10 }
+  ],
+  "screenshots": {}
+}

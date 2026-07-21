@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "trace2e": {
+      "command": "node",
+      "args": ["daemon/dist/cli.js"]
+    }
+  }
+}
