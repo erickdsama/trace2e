@@ -1,4 +1,7 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import { readFile } from "node:fs/promises";
+import { fileURLToPath } from "node:url";
+import { dirname, join } from "node:path";
 import { validateTrace, asTrace } from "@trace2e/schema";
 import { ALLOWED_ORIGIN, INGEST_HOST, INGEST_PORT, IS_REMOTE } from "./config.js";
 import {
@@ -29,6 +32,7 @@ import {
  */
 
 const MAX_BODY = 25 * 1024 * 1024;
+const DASHBOARD_FILE = join(dirname(fileURLToPath(import.meta.url)), "..", "templates", "dashboard.html");
 
 function isLoopback(req: IncomingMessage): boolean {
   const addr = req.socket.remoteAddress ?? "";
@@ -84,6 +88,18 @@ export async function startIngestServer(): Promise<void> {
 
     if (req.method === "GET" && path === "/health") {
       send(res, 200, { ok: true, service: "trace2e-daemon", remote: IS_REMOTE });
+      return;
+    }
+
+    // Management dashboard (static HTML; the API calls it makes still require the token).
+    if (req.method === "GET" && (path === "/" || path === "/ui" || path === "/dashboard")) {
+      try {
+        const html = await readFile(DASHBOARD_FILE);
+        res.writeHead(200, { "Content-Type": "text/html; charset=utf-8" });
+        res.end(html);
+      } catch {
+        send(res, 500, { error: "dashboard unavailable" });
+      }
       return;
     }
 
@@ -146,6 +162,6 @@ export async function startIngestServer(): Promise<void> {
   });
 
   await new Promise<void>((resolve) => server.listen(INGEST_PORT, INGEST_HOST, resolve));
-  console.error(`[trace2e] API listening on http://${INGEST_HOST}:${INGEST_PORT} (remote=${IS_REMOTE})`);
+  console.error(`[trace2e] API + dashboard on http://${INGEST_HOST}:${INGEST_PORT}/ (remote=${IS_REMOTE})`);
   if (!process.env.TRACE2E_TOKEN) console.error(`[trace2e] token: ${token}`);
 }
