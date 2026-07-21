@@ -1,0 +1,76 @@
+name: Release
+
+# On a vX.Y.Z tag: build standalone `trace2e` binaries (no Node needed) for Linux and
+# macOS, build the turnkey use-package, and attach them all to the GitHub Release.
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  binaries:
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            asset: trace2e-linux-x64
+          - os: macos-13
+            asset: trace2e-darwin-x64
+          - os: macos-14
+            asset: trace2e-darwin-arm64
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @trace2e/schema build
+      - name: Build binary
+        run: OUT="dist/bin/${{ matrix.asset }}" node scripts/build-binary.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset }}
+          path: dist/bin/${{ matrix.asset }}
+
+  release:
+    needs: binaries
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Build turnkey package
+        run: pnpm dist
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+      - name: Collect release assets
+        run: |
+          mkdir -p release
+          cp dist/trace2e-use.tgz release/
+          find artifacts -type f -exec cp {} release/ \;
+          ls -lh release
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: release/*
+          generate_release_notes: true
+          body: |
+            Standalone `trace2e` client binaries (no Node required) and the turnkey
+            `trace2e-use.tgz` package.
+
+            Install the client in a project:
+            ```
+            ./trace2e-<os>-<arch> init --token <your-token>
+            ```
+            (Daemon URL defaults to the hosted daemon; override with `--url`.)

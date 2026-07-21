@@ -27,3 +27,6 @@ extension/key.pem
 
 # Generated from daemon/templates by scripts/gen-embedded.mjs at build time
 daemon/src/embedded.ts
+
+# SEA binary build temp
+build-sea/

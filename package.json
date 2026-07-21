@@ -11,6 +11,7 @@
     "ext:dev": "pnpm --filter @trace2e/extension dev",
     "ext:build": "pnpm --filter @trace2e/extension build",
     "dist": "node scripts/build-dist.mjs",
+    "binary": "node scripts/build-binary.mjs",
     "test:e2e": "playwright test",
     "test:e2e:headed": "playwright test --headed"
   },
