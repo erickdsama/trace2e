@@ -77,8 +77,7 @@ give it a volume at `/data`, set `TRACE2E_ADMIN_PASSWORD`, and expose it over HT
 ## Point the pieces at the hosted daemon
 
 **Extension:** right-click the extension icon → **Options** (or the ⚙ gear in the side
-panel) → set Daemon URL to your `https://…` host and paste *your* API token → Save. Saving
-requests permission to reach that origin (needed for a non-loopback daemon); approve it.
+panel) → set Daemon URL to your `https://…` host and paste *your* API token → Save.
 **Test connection** confirms the token works.
 
 **Claude Code (each developer):** make the local MCP server read from the hosted daemon by

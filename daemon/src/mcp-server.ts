@@ -9,7 +9,7 @@ import { backend, backendMode } from "./backend.js";
  * All logging goes to stderr — stdout is reserved for the MCP protocol.
  */
 export function buildMcpServer(): McpServer {
-  const server = new McpServer({ name: "trace2e", version: "0.1.0" });
+  const server = new McpServer({ name: "trace2e", version: "0.2.0" });
 
   server.tool(
     "list_traces",

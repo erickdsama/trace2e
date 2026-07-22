@@ -29,21 +29,6 @@ export async function saveSettings(patch: Partial<Settings>): Promise<Settings> 
   return merged;
 }
 
-/**
- * A hosted (non-loopback) daemon needs an explicit host permission before we can fetch
- * it. Must be called from a user-gesture context (e.g. a Save button click).
- * Returns false when the user denies the permission prompt.
- */
-export async function ensureHostPermission(daemonUrl: string): Promise<boolean> {
-  try {
-    const u = new URL(daemonUrl);
-    const isLoopback = u.hostname === "127.0.0.1" || u.hostname === "localhost";
-    if (isLoopback) return true;
-    const origins = [`${u.origin}/*`];
-    if (await chrome.permissions.contains({ origins })) return true;
-    return await chrome.permissions.request({ origins });
-  } catch {
-    // Invalid URL — let the eventual fetch surface the error.
-    return true;
-  }
-}
+// Note: no host-permission handling is needed to reach the daemon. The recorder's
+// <all_urls> content script match pattern already grants all-hosts access in Chrome,
+// so extension contexts fetch any daemon origin CORS-exempt.

@@ -12,13 +12,13 @@ export default defineConfig({
   manifest: {
     name: "trace2e recorder",
     description: "Record user interactions and generate Playwright E2E tests via Claude Code.",
-    version: "0.1.0",
+    version: "0.2.0",
     ...(process.env.WEBSTORE ? {} : { key: DEV_KEY }),
     permissions: ["activeTab", "storage", "sidePanel", "webNavigation", "tabs"],
-    // Local daemon on loopback is always allowed; a hosted daemon's origin is requested at
-    // runtime (see the side panel's Save Settings) via optional_host_permissions.
-    host_permissions: ["http://127.0.0.1/*", "http://localhost/*"],
-    optional_host_permissions: ["https://*/*"],
+    // No host_permissions needed for the daemon: the recorder's <all_urls> content script
+    // match already counts as an all-hosts permission in Chrome, so extension contexts
+    // (options page, side panel, background) can fetch any daemon origin CORS-exempt.
+    // Verified empirically against a daemon with CORS locked to a different origin.
     action: { default_title: "trace2e" },
     side_panel: { default_path: "sidepanel.html" },
   },
