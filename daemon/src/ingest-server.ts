@@ -10,22 +10,47 @@ import {
   getTrace,
   listTraces,
   saveTrace,
+  updateTrace,
 } from "./store.js";
+import {
+  authenticate,
+  bootstrapAdmin,
+  createUser,
+  deleteUser,
+  listUsersPublic,
+  resetToken,
+  setPassword,
+  verifyLogin,
+  type Role,
+} from "./users.js";
+import { createProject, deleteProject, listProjects, renameProject } from "./projects.js";
 
 /**
  * HTTP API for trace2e.
  *
- * Write (Chrome extension):
- *   POST   /traces                 { trace, screenshots? }
- * Read (Claude Code MCP, local or remote):
- *   GET    /traces                 → summaries
+ * Auth:
+ *   POST   /auth/login             { username, password } → { token, user }  (no auth)
+ *   GET    /auth/me                → { id, username, role }
+ * Traces:
+ *   POST   /traces                 { trace, screenshots? }   (stamps createdBy)
+ *   GET    /traces[?project=id|none] → summaries
  *   GET    /traces/:id|latest      → full trace
+ *   PUT    /traces/:id             edited trace (id/createdAt/createdBy immutable)
  *   GET    /traces/:id/screenshots → { stepId: base64 }
  *   DELETE /traces/:id
+ * Projects:
+ *   GET/POST /projects             list / create { name }
+ *   PUT/DELETE /projects/:id       rename { name } / delete
+ * Users (admin only):
+ *   GET/POST /users                list / create { username, password, role? } → incl. token (shown once)
+ *   DELETE /users/:id              (last-admin guard)
+ *   POST   /users/:id/reset-token  → { token }
+ *   PUT    /users/:id/password     { password }
  *   GET    /health                 (no auth)
  *
- * All non-health routes require `Authorization: Bearer <token>`. Locally the server binds
- * 127.0.0.1 and additionally rejects non-loopback callers; in a hosted deploy
+ * All other routes require `Authorization: Bearer <token>` — a per-user token from
+ * users.json, or the legacy single token (maps to a virtual admin). Locally the server
+ * binds 127.0.0.1 and additionally rejects non-loopback callers; in a hosted deploy
  * (TRACE2E_HOST=0.0.0.0) that check is relaxed and the token + TLS (at the proxy) protect it.
  */
 
@@ -41,7 +66,7 @@ function applyCors(res: ServerResponse, origin: string | undefined): void {
   if (allow && (!ALLOWED_ORIGIN || allow === ALLOWED_ORIGIN)) {
     res.setHeader("Access-Control-Allow-Origin", allow);
     res.setHeader("Access-Control-Allow-Headers", "Content-Type, Authorization");
-    res.setHeader("Access-Control-Allow-Methods", "GET, POST, DELETE, OPTIONS");
+    res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, OPTIONS");
   }
 }
 
@@ -70,7 +95,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 export async function startIngestServer(): Promise<void> {
   const token = await getOrCreateToken();
-  const authed = (req: IncomingMessage) => (req.headers.authorization ?? "") === `Bearer ${token}`;
+  await bootstrapAdmin();
 
   const server = createServer(async (req, res) => {
     applyCors(res, req.headers.origin);
@@ -100,12 +125,38 @@ export async function startIngestServer(): Promise<void> {
       send(res, 403, { error: "loopback only" });
       return;
     }
-    if (!authed(req)) {
-      send(res, 401, { error: "invalid or missing token" });
-      return;
-    }
 
     try {
+      // POST /auth/login — password → the user's static API token (no auth required).
+      if (req.method === "POST" && path === "/auth/login") {
+        const { username, password } = JSON.parse(await readBody(req)) as {
+          username?: string;
+          password?: string;
+        };
+        const user = await verifyLogin(String(username ?? ""), String(password ?? ""));
+        if (!user) {
+          send(res, 401, { error: "invalid username or password" });
+          return;
+        }
+        send(res, 200, {
+          token: user.token,
+          user: { id: user.id, username: user.username, role: user.role },
+        });
+        return;
+      }
+
+      const auth = await authenticate(req.headers.authorization);
+      if (!auth) {
+        send(res, 401, { error: "invalid or missing token" });
+        return;
+      }
+
+      // GET /auth/me
+      if (req.method === "GET" && path === "/auth/me") {
+        send(res, 200, auth);
+        return;
+      }
+
       // POST /traces
       if (req.method === "POST" && path === "/traces") {
         const envelope = JSON.parse(await readBody(req)) as {
@@ -117,14 +168,15 @@ export async function startIngestServer(): Promise<void> {
           send(res, 422, { error: "invalid trace", details: errors });
           return;
         }
-        const saved = await saveTrace(asTrace(envelope.trace), envelope.screenshots);
+        const saved = await saveTrace(asTrace(envelope.trace), envelope.screenshots, auth.username);
         send(res, 201, { id: saved.id, name: saved.name, stepCount: saved.steps.length });
         return;
       }
 
-      // GET /traces
+      // GET /traces[?project=<id>|none]
       if (req.method === "GET" && path === "/traces") {
-        send(res, 200, await listTraces());
+        const project = url.searchParams.get("project") ?? undefined;
+        send(res, 200, await listTraces(project));
         return;
       }
 
@@ -141,9 +193,99 @@ export async function startIngestServer(): Promise<void> {
           send(res, 200, trace);
           return;
         }
+        if (req.method === "PUT" && !screenshots) {
+          const incoming = JSON.parse(await readBody(req)) as unknown;
+          const { valid, errors } = validateTrace(incoming);
+          if (!valid) {
+            send(res, 422, { error: "invalid trace", details: errors });
+            return;
+          }
+          const updated = await updateTrace(id, asTrace(incoming));
+          if (!updated) return send(res, 404, { error: "not found" });
+          send(res, 200, updated);
+          return;
+        }
         if (req.method === "DELETE") {
           send(res, 200, { deleted: await deleteTrace(id) });
           return;
+        }
+      }
+
+      // Projects
+      if (path === "/projects") {
+        if (req.method === "GET") {
+          send(res, 200, await listProjects());
+          return;
+        }
+        if (req.method === "POST") {
+          const { name } = JSON.parse(await readBody(req)) as { name?: string };
+          send(res, 201, await createProject(String(name ?? "")));
+          return;
+        }
+      }
+      const projectMatch = /^\/projects\/([^/]+)$/.exec(path);
+      if (projectMatch) {
+        const [, id] = projectMatch;
+        if (req.method === "PUT") {
+          const { name } = JSON.parse(await readBody(req)) as { name?: string };
+          send(res, 200, await renameProject(id, String(name ?? "")));
+          return;
+        }
+        if (req.method === "DELETE") {
+          send(res, 200, { deleted: await deleteProject(id) });
+          return;
+        }
+      }
+
+      // Users (admin only)
+      if (path === "/users" || path.startsWith("/users/")) {
+        if (auth.role !== "admin") {
+          send(res, 403, { error: "admin only" });
+          return;
+        }
+        if (req.method === "GET" && path === "/users") {
+          send(res, 200, await listUsersPublic());
+          return;
+        }
+        if (req.method === "POST" && path === "/users") {
+          const { username, password, role } = JSON.parse(await readBody(req)) as {
+            username?: string;
+            password?: string;
+            role?: Role;
+          };
+          const user = await createUser(
+            String(username ?? ""),
+            String(password ?? ""),
+            role === "admin" ? "admin" : "user",
+          );
+          // The token is returned once at creation; list responses never include it.
+          send(res, 201, {
+            id: user.id,
+            username: user.username,
+            role: user.role,
+            createdAt: user.createdAt,
+            token: user.token,
+          });
+          return;
+        }
+        const userMatch = /^\/users\/([^/]+)(\/reset-token|\/password)?$/.exec(path);
+        if (userMatch) {
+          const [, id, action] = userMatch;
+          if (req.method === "DELETE" && !action) {
+            await deleteUser(id);
+            send(res, 200, { deleted: true });
+            return;
+          }
+          if (req.method === "POST" && action === "/reset-token") {
+            send(res, 200, { token: await resetToken(id) });
+            return;
+          }
+          if (req.method === "PUT" && action === "/password") {
+            const { password } = JSON.parse(await readBody(req)) as { password?: string };
+            await setPassword(id, String(password ?? ""));
+            send(res, 200, { updated: true });
+            return;
+          }
         }
       }
 

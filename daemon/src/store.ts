@@ -42,6 +42,7 @@ function traceDir(id: string): string {
 export async function saveTrace(
   incoming: Trace,
   inlineScreenshots?: Record<string, string>,
+  createdBy?: string,
 ): Promise<Trace> {
   await ensureStore();
   const id = randomUUID();
@@ -61,11 +62,49 @@ export async function saveTrace(
   }
 
   const trace: Trace = { ...incoming, id, createdAt, screenshots };
+  if (createdBy) trace.createdBy = createdBy;
   await writeFile(join(dir, "trace.json"), JSON.stringify(trace, null, 2), "utf8");
   return trace;
 }
 
-export async function listTraces(): Promise<TraceSummary[]> {
+/**
+ * Rewrite an existing trace with edited content. `id`, `createdAt`, `createdBy` and
+ * `version` are immutable; the screenshots map is server-owned — entries whose step no
+ * longer exists are pruned and their PNG files removed.
+ */
+export async function updateTrace(id: string, incoming: Trace): Promise<Trace | null> {
+  const existing = await getTrace(id);
+  if (!existing) return null;
+  const dir = traceDir(id);
+
+  const stepIds = new Set(incoming.steps.map((s) => s.id));
+  const screenshots: Record<string, string> = {};
+  for (const [stepId, filename] of Object.entries(existing.screenshots ?? {})) {
+    if (stepIds.has(stepId)) {
+      screenshots[stepId] = filename;
+    } else {
+      await rm(join(dir, filename), { force: true });
+    }
+  }
+
+  const trace: Trace = {
+    ...incoming,
+    version: existing.version,
+    id: existing.id,
+    createdAt: existing.createdAt,
+    screenshots,
+  };
+  if (existing.createdBy) trace.createdBy = existing.createdBy;
+  else delete trace.createdBy;
+  await writeFile(join(dir, "trace.json"), JSON.stringify(trace, null, 2), "utf8");
+  return trace;
+}
+
+/**
+ * List trace summaries, newest first. `projectFilter` narrows to a project id, or the
+ * literal "none" for traces with no project.
+ */
+export async function listTraces(projectFilter?: string): Promise<TraceSummary[]> {
   await ensureStore();
   const entries = await readdir(TRACES_DIR, { withFileTypes: true });
   const summaries: TraceSummary[] = [];
@@ -73,14 +112,17 @@ export async function listTraces(): Promise<TraceSummary[]> {
     if (!entry.isDirectory()) continue;
     try {
       const trace = await getTrace(entry.name);
-      if (trace) {
-        summaries.push({
-          id: trace.id,
-          name: trace.name,
-          createdAt: trace.createdAt,
-          stepCount: trace.steps.length,
-        });
-      }
+      if (!trace) continue;
+      if (projectFilter === "none" && trace.projectId) continue;
+      if (projectFilter && projectFilter !== "none" && trace.projectId !== projectFilter) continue;
+      summaries.push({
+        id: trace.id,
+        name: trace.name,
+        createdAt: trace.createdAt,
+        stepCount: trace.steps.length,
+        ...(trace.projectId ? { projectId: trace.projectId } : {}),
+        ...(trace.createdBy ? { createdBy: trace.createdBy } : {}),
+      });
     } catch {
       // Skip unreadable/partial trace directories.
     }

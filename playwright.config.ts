@@ -5,6 +5,8 @@ import "dotenv/config";
 // for the requested name "test-product"). baseURL + viewport come from the recording.
 export default defineConfig({
   testDir: "./tests",
+  // Daemon/dashboard tests have their own config (playwright.daemon.config.ts).
+  testIgnore: ["daemon-api.spec.ts", "dashboard.spec.ts"],
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

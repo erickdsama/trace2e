@@ -18,6 +18,9 @@ body {
   margin: 0; padding: 12px; min-width: 320px;
 }
 header { display: flex; align-items: center; justify-content: space-between; }
+.head-right { display: flex; align-items: center; gap: 6px; }
+button.icon { padding: 2px 7px; font-size: 14px; line-height: 1.2; }
+#projectSelect { margin-top: 6px; }
 h1 { font-size: 16px; margin: 0; }
 h2 { font-size: 12px; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); margin: 16px 0 6px; }
 .muted { color: var(--muted); }
@@ -52,7 +55,6 @@ ol { margin: 0; padding-left: 20px; }
 .checkpoints .row button { flex: 1 1 auto; }
 #pickHint:not(:empty) { margin-top: 6px; padding: 4px 8px; border-radius: 6px; background: var(--accent); color: #fff; }
 section, details { margin-top: 8px; }
-details.settings label { display: block; margin: 6px 0; }
 .insert { border-top: 1px solid var(--border); padding-top: 4px; }
 #uploadResult.ok { color: var(--ok); }
 #uploadResult.err { color: var(--danger); }

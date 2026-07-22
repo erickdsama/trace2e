@@ -3,24 +3,13 @@ import type { AnyMessage, Session, UploadResult } from "../lib/messages.js";
 import { sessionToTrace } from "../lib/messages.js";
 import { loadSession, mutateSession, saveSession } from "../lib/session.js";
 import { EMPTY_SESSION } from "../lib/messages.js";
+import { getSettings } from "../lib/settings.js";
 
 /**
  * Background service worker: the single writer of the recording session. Handles control
  * messages from the side panel and capture messages from content scripts, tracks
  * navigations, captures screenshots, and uploads finished traces to the local daemon.
  */
-
-interface Settings {
-  daemonUrl: string;
-  token: string;
-}
-const SETTINGS_KEY = "trace2e:settings";
-const DEFAULT_SETTINGS: Settings = { daemonUrl: "https://trace2e.novaminds.xyz", token: "" };
-
-async function getSettings(): Promise<Settings> {
-  const res = await chrome.storage.local.get(SETTINGS_KEY);
-  return { ...DEFAULT_SETTINGS, ...(res[SETTINGS_KEY] as Partial<Settings>) };
-}
 
 let lastShot = 0; // captureVisibleTab is rate-limited; throttle to ~2/sec.
 
@@ -72,8 +61,8 @@ async function startRecording(name: string): Promise<Session> {
 async function uploadTrace(): Promise<UploadResult> {
   const session = await loadSession();
   const settings = await getSettings();
-  if (!settings.token) return { ok: false, error: "No daemon token set. Paste it in Settings." };
-  const { trace, screenshots } = sessionToTrace(session);
+  if (!settings.token) return { ok: false, error: "No daemon token set. Open the extension options (⚙) and paste it." };
+  const { trace, screenshots } = sessionToTrace(session, settings.projectId || undefined);
   try {
     const res = await fetch(`${settings.daemonUrl}/traces`, {
       method: "POST",

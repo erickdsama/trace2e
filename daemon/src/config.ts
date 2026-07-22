@@ -6,6 +6,8 @@ export const TRACE2E_HOME = process.env.TRACE2E_HOME ?? join(homedir(), ".trace2
 
 export const TRACES_DIR = join(TRACE2E_HOME, "traces");
 export const TOKEN_FILE = join(TRACE2E_HOME, "token");
+export const USERS_FILE = join(TRACE2E_HOME, "users.json");
+export const PROJECTS_FILE = join(TRACE2E_HOME, "projects.json");
 
 /** Ingest/API port. Override with TRACE2E_PORT (or PORT, which many PaaS platforms set). */
 export const INGEST_PORT = Number(process.env.TRACE2E_PORT ?? process.env.PORT ?? 8787);
@@ -24,6 +26,12 @@ export const IS_REMOTE = INGEST_HOST !== "127.0.0.1" && INGEST_HOST !== "localho
  * restarts and not written to disk. Locally, a random token is generated in ~/.trace2e/token.
  */
 export const FIXED_TOKEN = process.env.TRACE2E_TOKEN ?? null;
+
+/**
+ * When set, an `admin` user is created on startup (if missing) with this password.
+ * The admin then manages users from the dashboard's admin page.
+ */
+export const ADMIN_PASSWORD = process.env.TRACE2E_ADMIN_PASSWORD ?? null;
 
 /**
  * When set, the MCP server reads traces from this hosted daemon's HTTP API instead of the

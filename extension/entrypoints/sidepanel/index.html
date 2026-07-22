@@ -9,11 +9,15 @@
   <body>
     <header>
       <h1>trace2e</h1>
-      <span id="status" class="status idle">idle</span>
+      <div class="head-right">
+        <span id="status" class="status idle">idle</span>
+        <button id="btnSettings" class="icon" title="Extension settings (daemon URL, token)">⚙</button>
+      </div>
     </header>
 
     <section class="controls">
       <input id="flowName" type="text" placeholder="flow name, e.g. login-with-otp" />
+      <select id="projectSelect" hidden title="Project to upload into"></select>
       <div class="row">
         <button id="btnStart">● Record</button>
         <button id="btnPause" disabled>Pause</button>
@@ -60,13 +64,6 @@
       <button id="btnUpload" class="primary">Upload to daemon</button>
       <p id="uploadResult" class="muted"></p>
     </section>
-
-    <details class="settings">
-      <summary>Settings</summary>
-      <label>Daemon URL <input id="daemonUrl" type="text" /></label>
-      <label>Ingest token <input id="token" type="password" placeholder="paste from daemon startup log" /></label>
-      <button id="btnSaveSettings">Save</button>
-    </details>
 
     <script type="module" src="./main.ts"></script>
   </body>

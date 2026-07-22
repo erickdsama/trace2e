@@ -123,6 +123,13 @@ export function validateTrace(input: unknown): { valid: boolean; errors: string[
     errors.push("screenshots must be an object map");
   }
 
+  if (input.projectId !== undefined && typeof input.projectId !== "string") {
+    errors.push("projectId must be a string when present");
+  }
+  if (input.createdBy !== undefined && typeof input.createdBy !== "string") {
+    errors.push("createdBy must be a string when present");
+  }
+
   return { valid: errors.length === 0, errors };
 }
 

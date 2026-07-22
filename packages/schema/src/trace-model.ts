@@ -91,6 +91,10 @@ export interface Trace {
   steps: Step[];
   /** Maps a step id to a screenshot filename stored alongside the trace. */
   screenshots: Record<string, string>;
+  /** Id of the project this trace belongs to. Absent = unassigned. */
+  projectId?: string;
+  /** Username that uploaded the trace. Stamped by the daemon on ingest; informational. */
+  createdBy?: string;
 }
 
 /** Lightweight summary returned by list_traces. */
@@ -99,4 +103,6 @@ export interface TraceSummary {
   name: string;
   createdAt: string;
   stepCount: number;
+  projectId?: string;
+  createdBy?: string;
 }

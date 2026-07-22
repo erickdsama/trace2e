@@ -16,8 +16,9 @@ Chrome extension  ──POST trace──▶  daemon (HTTP API + MCP + dashboard)
   picker for assertions/waits, fragile-selector flags, plus custom JS, hooks, delays and
   checkpoints.
 - **Local or hosted.** Run the daemon on your machine, or deploy it once and have everyone
-  point at it (see `DEPLOY.md`). A web **dashboard** to browse/manage traces is served at
-  the daemon's `/`.
+  point at it (see `DEPLOY.md`). A web **dashboard** at the daemon's `/` lets you log in,
+  browse traces by **project**, **edit** recorded traces (rename, tweak steps, reorder,
+  raw JSON), and — as admin — manage **users**, each with their own password and API token.
 
 ## Releases (what you download)
 
@@ -47,10 +48,11 @@ project and talks to your hosted daemon. The extension defaults its Daemon URL t
    This writes `.mcp.json` (MCP → the daemon) and `.claude/commands/trace2e.md`.
    Override the daemon with `--url https://your-daemon`.
 2. **Load the extension.** Unzip `trace2e-extension-chrome.zip`, load it at
-   `chrome://extensions` (Developer mode → Load unpacked). Side panel → Settings → paste the
-   token → Save (the URL is pre-filled).
-3. **Record → Upload.** Name the flow (any time), drive the site, add checkpoints/waits with
-   the picker, then **Upload to daemon**.
+   `chrome://extensions` (Developer mode → Load unpacked). Right-click the extension icon →
+   **Options** (or the ⚙ gear in the side panel) → paste your token → Save (the URL is
+   pre-filled). Get your token from the daemon dashboard: log in → **Copy token**.
+3. **Record → Upload.** Name the flow (any time), pick a project if you use them, drive the
+   site, add checkpoints/waits with the picker, then **Upload to daemon**.
 4. **Generate tests.** In Claude Code: `/trace2e <flow-name>` (omit the name for the latest).
 
 ## Run your own daemon
@@ -104,6 +106,10 @@ pnpm dist           # → dist/trace2e-use.tgz (turnkey package)
 - Local mode binds loopback and rejects non-loopback callers. Hosted mode binds `0.0.0.0`,
   requires a Bearer token, restricts CORS to the extension origin, and expects TLS at the
   proxy (Caddy in the provided deploy).
+- Hosted daemons support **per-user accounts**: set `TRACE2E_ADMIN_PASSWORD`, log into the
+  dashboard as `admin`, and create a user per teammate — each with their own password and
+  resettable `t2e_…` API token (scrypt-hashed passwords, tokens never re-shown after
+  creation). The legacy single `TRACE2E_TOKEN` still works for local/simple setups.
 - Custom JS / hook code is operator-authored and visible in the side panel before upload —
   nothing is injected silently. It is recorded as text and only ever runs inside the
   generated Playwright test, never in the extension.

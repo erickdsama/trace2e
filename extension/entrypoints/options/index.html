@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>trace2e · settings</title>
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <main>
+      <h1>trace2e settings</h1>
+      <p class="muted">
+        These settings are used by the recorder when uploading traces. Get your API token
+        from the daemon dashboard (log in → Copy token) or from the daemon startup log.
+      </p>
+      <label>Daemon URL <input id="daemonUrl" type="text" placeholder="https://trace2e.example.com" /></label>
+      <label>API token <input id="token" type="password" placeholder="t2e_… (your personal token)" /></label>
+      <div class="row">
+        <button id="btnSave" class="primary">Save</button>
+        <button id="btnTest">Test connection</button>
+      </div>
+      <p id="result" class="muted"></p>
+    </main>
+    <script type="module" src="./main.ts"></script>
+  </body>
+</html>

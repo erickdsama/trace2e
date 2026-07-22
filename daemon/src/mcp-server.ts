@@ -14,8 +14,15 @@ export function buildMcpServer(): McpServer {
   server.tool(
     "list_traces",
     "List recorded traces (most recent first) with id, name, createdAt and step count.",
-    {},
-    async () => ({ content: [{ type: "text", text: JSON.stringify(await backend.list(), null, 2) }] }),
+    {
+      project: z
+        .string()
+        .optional()
+        .describe('Filter by project id or name; "none" lists traces with no project'),
+    },
+    async ({ project }) => ({
+      content: [{ type: "text", text: JSON.stringify(await backend.list(project), null, 2) }],
+    }),
   );
 
   server.tool(

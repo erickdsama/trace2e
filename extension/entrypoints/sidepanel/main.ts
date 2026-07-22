@@ -2,6 +2,7 @@ import type { LocatorCandidates, Step, Variable, VariableKind, VariableSource } 
 import type { PickPurpose, Session, UploadResult } from "../../lib/messages.js";
 import { EMPTY_SESSION } from "../../lib/messages.js";
 import { loadSession, onSessionChanged } from "../../lib/session.js";
+import { getSettings, saveSettings } from "../../lib/settings.js";
 
 const $ = <T extends HTMLElement>(id: string) => document.getElementById(id) as T;
 
@@ -28,9 +29,8 @@ const els = {
   btnAddCustom: $<HTMLButtonElement>("btnAddCustom"),
   btnUpload: $<HTMLButtonElement>("btnUpload"),
   uploadResult: $("uploadResult"),
-  daemonUrl: $<HTMLInputElement>("daemonUrl"),
-  token: $<HTMLInputElement>("token"),
-  btnSaveSettings: $<HTMLButtonElement>("btnSaveSettings"),
+  btnSettings: $<HTMLButtonElement>("btnSettings"),
+  projectSelect: $<HTMLSelectElement>("projectSelect"),
 };
 
 const send = (msg: object) => chrome.runtime.sendMessage(msg) as Promise<any>;
@@ -281,42 +281,31 @@ els.btnAddDelay.onclick = async () => {
   els.delayMs.value = "";
 };
 
-// --- settings ---
-const SETTINGS_KEY = "trace2e:settings";
-async function loadSettings() {
-  const res = await chrome.storage.local.get(SETTINGS_KEY);
-  const s = { daemonUrl: "https://trace2e.novaminds.xyz", token: "", ...(res[SETTINGS_KEY] ?? {}) };
-  els.daemonUrl.value = s.daemonUrl;
-  els.token.value = s.token;
-}
-els.btnSaveSettings.onclick = async () => {
-  const daemonUrl = els.daemonUrl.value.trim();
-  await chrome.storage.local.set({ [SETTINGS_KEY]: { daemonUrl, token: els.token.value.trim() } });
+// --- settings live in the extension options page; the gear just opens it ---
+els.btnSettings.onclick = () => chrome.runtime.openOptionsPage();
 
-  // A hosted (non-loopback) daemon needs an explicit host permission to POST to it.
+// --- project picker: part of the recording workflow, fed by the daemon ---
+async function loadProjects() {
+  const settings = await getSettings();
+  if (!settings.token) return; // not configured yet — keep the select hidden
   try {
-    const u = new URL(daemonUrl);
-    const isLoopback = u.hostname === "127.0.0.1" || u.hostname === "localhost";
-    if (!isLoopback) {
-      const origins = [`${u.origin}/*`];
-      if (!(await chrome.permissions.contains({ origins }))) {
-        const granted = await chrome.permissions.request({ origins });
-        if (!granted) {
-          els.btnSaveSettings.textContent = "Permission denied";
-          setTimeout(() => (els.btnSaveSettings.textContent = "Save"), 1600);
-          return;
-        }
-      }
-    }
+    const res = await fetch(`${settings.daemonUrl}/projects`, {
+      headers: { Authorization: `Bearer ${settings.token}` },
+    });
+    if (!res.ok) return; // old daemon (404), bad token (401), … — hide silently
+    const projects = (await res.json()) as Array<{ id: string; name: string }>;
+    els.projectSelect.innerHTML =
+      `<option value="">(no project)</option>` +
+      projects.map((p) => `<option value="${esc(p.id)}">${esc(p.name)}</option>`).join("");
+    els.projectSelect.value = projects.some((p) => p.id === settings.projectId) ? settings.projectId : "";
+    els.projectSelect.hidden = false;
   } catch {
-    // invalid URL — leave as-is; upload will surface the error
+    // daemon unreachable — hide silently
   }
-
-  els.btnSaveSettings.textContent = "Saved ✓";
-  setTimeout(() => (els.btnSaveSettings.textContent = "Save"), 1200);
-};
+}
+els.projectSelect.onchange = () => saveSettings({ projectId: els.projectSelect.value });
 
 // --- init ---
 onSessionChanged(render);
 loadSession().then((s) => render(s ?? { ...EMPTY_SESSION }));
-loadSettings();
+loadProjects();

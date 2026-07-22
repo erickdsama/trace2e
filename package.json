@@ -12,7 +12,8 @@
     "ext:build": "pnpm --filter @trace2e/extension build",
     "dist": "node scripts/build-dist.mjs",
     "test:e2e": "playwright test",
-    "test:e2e:headed": "playwright test --headed"
+    "test:e2e:headed": "playwright test --headed",
+    "test:daemon": "playwright test -c playwright.daemon.config.ts"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0",

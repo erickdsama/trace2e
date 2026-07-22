@@ -40,6 +40,8 @@ Env:
   TRACE2E_PORT / PORT     API port (default 8787)
   TRACE2E_HOST            bind address (default 127.0.0.1; set 0.0.0.0 to deploy)
   TRACE2E_TOKEN           fixed access token (set as a secret in production)
+  TRACE2E_ADMIN_PASSWORD  bootstrap an "admin" user on startup; manage users, per-user
+                          tokens and projects from the dashboard afterwards
   TRACE2E_REMOTE_URL      read traces from a hosted daemon instead of local disk
   TRACE2E_ALLOWED_ORIGIN  lock CORS to a specific chrome-extension:// origin
 `;

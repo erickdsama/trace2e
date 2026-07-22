@@ -68,7 +68,10 @@ export interface UploadResult {
 }
 
 /** Build the final Trace envelope from a finished session. */
-export function sessionToTrace(session: Session): { trace: Trace; screenshots: Record<string, string> } {
+export function sessionToTrace(
+  session: Session,
+  projectId?: string,
+): { trace: Trace; screenshots: Record<string, string> } {
   // Reconcile: guarantee every variableRef used by a step has a declaration. This is a
   // safety net so a dropped/racy variable registration can never yield an "invalid trace".
   const variables: Variable[] = [...session.variables];
@@ -94,5 +97,6 @@ export function sessionToTrace(session: Session): { trace: Trace; screenshots: R
     steps: session.steps,
     screenshots: {},
   };
+  if (projectId) trace.projectId = projectId;
   return { trace, screenshots: session.screenshots };
 }
