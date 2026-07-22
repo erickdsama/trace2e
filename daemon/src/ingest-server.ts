@@ -50,7 +50,9 @@ import { createProject, deleteProject, listProjects, renameProject } from "./pro
  *   GET    /health                 (no auth)
  *
  * All other routes require `Authorization: Bearer <token>` — a per-user token from
- * users.json, or the legacy single token (maps to a virtual admin). Locally the server
+ * users.json, or the legacy single token (maps to a virtual admin). Traces and projects
+ * are scoped to their creator: plain users only see/manage their own (another user's
+ * resources 404), admins and the legacy token see everything. Locally the server
  * binds 127.0.0.1 and additionally rejects non-loopback callers; in a hosted deploy
  * (TRACE2E_HOST=0.0.0.0) that check is relaxed and the token + TLS (at the proxy) protect it.
  */
@@ -173,6 +175,17 @@ export async function startIngestServer(): Promise<void> {
         return;
       }
 
+      // Scoping: plain users only see their own traces/projects; admins (and the legacy
+      // token) see everything. `owner` is the filter applied to reads and guards writes.
+      const owner = auth.role === "admin" ? undefined : auth.username;
+
+      /** A trace visible to this caller, or null (another user's trace 404s, not 403s). */
+      const visibleTrace = async (id: string) => {
+        const trace = id === "latest" ? await getLatestTrace(owner) : await getTrace(id);
+        if (!trace || (owner && trace.createdBy !== owner)) return null;
+        return trace;
+      };
+
       // POST /traces
       if (req.method === "POST" && path === "/traces") {
         const envelope = JSON.parse(await readBody(req)) as {
@@ -192,20 +205,20 @@ export async function startIngestServer(): Promise<void> {
       // GET /traces[?project=<id>|none]
       if (req.method === "GET" && path === "/traces") {
         const project = url.searchParams.get("project") ?? undefined;
-        send(res, 200, await listTraces(project));
+        send(res, 200, await listTraces(project, owner));
         return;
       }
 
       const match = /^\/traces\/([^/]+)(\/screenshots)?$/.exec(path);
       if (match) {
         const [, id, screenshots] = match;
+        const trace = await visibleTrace(id);
+        if (!trace) return send(res, 404, { error: "not found" });
         if (req.method === "GET" && screenshots) {
-          send(res, 200, await getScreenshotData(id));
+          send(res, 200, await getScreenshotData(trace.id));
           return;
         }
         if (req.method === "GET") {
-          const trace = id === "latest" ? await getLatestTrace() : await getTrace(id);
-          if (!trace) return send(res, 404, { error: "not found" });
           send(res, 200, trace);
           return;
         }
@@ -216,26 +229,26 @@ export async function startIngestServer(): Promise<void> {
             send(res, 422, { error: "invalid trace", details: errors });
             return;
           }
-          const updated = await updateTrace(id, asTrace(incoming));
+          const updated = await updateTrace(trace.id, asTrace(incoming));
           if (!updated) return send(res, 404, { error: "not found" });
           send(res, 200, updated);
           return;
         }
         if (req.method === "DELETE") {
-          send(res, 200, { deleted: await deleteTrace(id) });
+          send(res, 200, { deleted: await deleteTrace(trace.id) });
           return;
         }
       }
 
-      // Projects
+      // Projects (scoped like traces: users manage their own, admins all)
       if (path === "/projects") {
         if (req.method === "GET") {
-          send(res, 200, await listProjects());
+          send(res, 200, await listProjects(owner));
           return;
         }
         if (req.method === "POST") {
           const { name } = JSON.parse(await readBody(req)) as { name?: string };
-          send(res, 201, await createProject(String(name ?? "")));
+          send(res, 201, await createProject(String(name ?? ""), auth.username));
           return;
         }
       }
@@ -244,11 +257,11 @@ export async function startIngestServer(): Promise<void> {
         const [, id] = projectMatch;
         if (req.method === "PUT") {
           const { name } = JSON.parse(await readBody(req)) as { name?: string };
-          send(res, 200, await renameProject(id, String(name ?? "")));
+          send(res, 200, await renameProject(id, String(name ?? ""), owner));
           return;
         }
         if (req.method === "DELETE") {
-          send(res, 200, { deleted: await deleteProject(id) });
+          send(res, 200, { deleted: await deleteProject(id, owner) });
           return;
         }
       }

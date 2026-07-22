@@ -108,9 +108,10 @@ pnpm dist           # → dist/trace2e-use.tgz (turnkey package)
   proxy (Caddy in the provided deploy).
 - Hosted daemons support **per-user accounts**: anyone can sign up from the dashboard's
   login page and gets their own password + resettable `t2e_…` API token (scrypt-hashed
-  passwords, tokens never re-shown after creation). Set `TRACE2E_ADMIN_PASSWORD` to
-  bootstrap an `admin` who can manage users. The legacy single `TRACE2E_TOKEN` still
-  works for local/simple setups.
+  passwords, tokens never re-shown after creation). **Traces and projects are private to
+  the user who created them** — only admins see everything. Set `TRACE2E_ADMIN_PASSWORD`
+  to bootstrap an `admin` who can manage users. The legacy single `TRACE2E_TOKEN` still
+  works for local/simple setups (it acts as an admin).
 - Custom JS / hook code is operator-authored and visible in the side panel before upload —
   nothing is injected silently. It is recorded as text and only ever runs inside the
   generated Playwright test, never in the extension.

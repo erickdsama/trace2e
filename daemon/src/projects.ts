@@ -7,12 +7,18 @@ import { PROJECTS_FILE, TRACE2E_HOME } from "./config.js";
  * File-backed project registry at ~/.trace2e/projects.json. Projects only group traces:
  * each trace carries an optional projectId; deleting a project leaves its traces in
  * place (they render as "Unassigned").
+ *
+ * Projects are scoped to their creator: `owner` params filter/guard access for plain
+ * users; admins (and the legacy token) pass no owner and see everything. Names are
+ * unique per owner, so two users can each have a "checkout" project.
  */
 
 export interface Project {
   id: string;
   name: string;
   createdAt: string;
+  /** Username that created the project. Absent on projects from before user scoping. */
+  createdBy?: string;
 }
 
 interface ProjectsFile {
@@ -40,9 +46,10 @@ async function persist(file: ProjectsFile): Promise<void> {
   cache = file;
 }
 
-export async function listProjects(): Promise<Project[]> {
+export async function listProjects(owner?: string): Promise<Project[]> {
   const file = await load();
-  return [...file.projects].sort((a, b) => a.name.localeCompare(b.name));
+  const visible = owner ? file.projects.filter((p) => p.createdBy === owner) : file.projects;
+  return [...visible].sort((a, b) => a.name.localeCompare(b.name));
 }
 
 export async function projectExists(id: string): Promise<boolean> {
@@ -66,23 +73,32 @@ function assertName(name: string): void {
   }
 }
 
-export async function createProject(name: string): Promise<Project> {
+/** Name uniqueness is checked among the same owner's projects only. */
+function nameTaken(file: ProjectsFile, name: string, createdBy: string | undefined, exceptId?: string): boolean {
+  return file.projects.some(
+    (p) => p.id !== exceptId && p.createdBy === createdBy && p.name.toLowerCase() === name.trim().toLowerCase(),
+  );
+}
+
+export async function createProject(name: string, createdBy?: string): Promise<Project> {
   assertName(name);
   const file = await load();
-  if (file.projects.some((p) => p.name.toLowerCase() === name.trim().toLowerCase())) {
+  if (nameTaken(file, name, createdBy)) {
     throw new Error(`project "${name.trim()}" already exists`);
   }
   const project: Project = { id: randomUUID(), name: name.trim(), createdAt: new Date().toISOString() };
+  if (createdBy) project.createdBy = createdBy;
   await persist({ ...file, projects: [...file.projects, project] });
   return project;
 }
 
-export async function renameProject(id: string, name: string): Promise<Project> {
+/** With `owner` set, another user's project behaves as if it doesn't exist. */
+export async function renameProject(id: string, name: string, owner?: string): Promise<Project> {
   assertName(name);
   const file = await load();
   const project = file.projects.find((p) => p.id === id);
-  if (!project) throw new Error("project not found");
-  if (file.projects.some((p) => p.id !== id && p.name.toLowerCase() === name.trim().toLowerCase())) {
+  if (!project || (owner && project.createdBy !== owner)) throw new Error("project not found");
+  if (nameTaken(file, name, project.createdBy, id)) {
     throw new Error(`project "${name.trim()}" already exists`);
   }
   project.name = name.trim();
@@ -90,9 +106,10 @@ export async function renameProject(id: string, name: string): Promise<Project> 
   return project;
 }
 
-export async function deleteProject(id: string): Promise<boolean> {
+export async function deleteProject(id: string, owner?: string): Promise<boolean> {
   const file = await load();
-  if (!file.projects.some((p) => p.id === id)) return false;
+  const project = file.projects.find((p) => p.id === id);
+  if (!project || (owner && project.createdBy !== owner)) return false;
   await persist({ ...file, projects: file.projects.filter((p) => p.id !== id) });
   return true;
 }

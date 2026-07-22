@@ -183,7 +183,9 @@ function renderSide() {
       .map((p) =>
         item(
           p.id,
-          esc(p.name),
+          esc(p.name) +
+            // Admins see everyone's projects — label whose it is.
+            (me.role === "admin" && p.createdBy ? ' <span class="muted">· ' + esc(p.createdBy) + "</span>" : ""),
           '<span class="actions"><button class="mini" data-ren="' + esc(p.id) + '" title="Rename">✎</button>' +
             '<button class="mini danger" data-delp="' + esc(p.id) + '" title="Delete">✕</button></span>',
         ),

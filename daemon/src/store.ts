@@ -102,9 +102,10 @@ export async function updateTrace(id: string, incoming: Trace): Promise<Trace | 
 
 /**
  * List trace summaries, newest first. `projectFilter` narrows to a project id, or the
- * literal "none" for traces with no project.
+ * literal "none" for traces with no project. `owner` narrows to traces created by that
+ * username (user-scoped views; admins pass undefined and see everything).
  */
-export async function listTraces(projectFilter?: string): Promise<TraceSummary[]> {
+export async function listTraces(projectFilter?: string, owner?: string): Promise<TraceSummary[]> {
   await ensureStore();
   const entries = await readdir(TRACES_DIR, { withFileTypes: true });
   const summaries: TraceSummary[] = [];
@@ -113,6 +114,7 @@ export async function listTraces(projectFilter?: string): Promise<TraceSummary[]
     try {
       const trace = await getTrace(entry.name);
       if (!trace) continue;
+      if (owner && trace.createdBy !== owner) continue;
       if (projectFilter === "none" && trace.projectId) continue;
       if (projectFilter && projectFilter !== "none" && trace.projectId !== projectFilter) continue;
       summaries.push({
@@ -136,9 +138,9 @@ export async function getTrace(id: string): Promise<Trace | null> {
   return JSON.parse(await readFile(file, "utf8")) as Trace;
 }
 
-/** Newest trace by createdAt, or null if the store is empty. */
-export async function getLatestTrace(): Promise<Trace | null> {
-  const summaries = await listTraces();
+/** Newest trace by createdAt (optionally among one owner's traces), or null. */
+export async function getLatestTrace(owner?: string): Promise<Trace | null> {
+  const summaries = await listTraces(undefined, owner);
   if (summaries.length === 0) return null;
   return getTrace(summaries[0].id);
 }

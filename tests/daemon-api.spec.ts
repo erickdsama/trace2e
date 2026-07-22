@@ -156,6 +156,64 @@ test.describe("projects", () => {
   });
 });
 
+test.describe("per-user scoping", () => {
+  async function register(request: APIRequestContext, username: string) {
+    const res = await request.post("/auth/register", { data: { username, password: `${username}-pass` } });
+    expect(res.status()).toBe(201);
+    return (await res.json()) as { token: string; user: { id: string; username: string } };
+  }
+
+  test("users only see their own traces and projects; admins see everything", async ({ request }) => {
+    const alice = await register(request, "alice");
+    const bob = await register(request, "bob");
+    const hA = auth(alice.token);
+    const hB = auth(bob.token);
+
+    // Both can have a project with the same name — uniqueness is per owner.
+    const projA = await (await request.post("/projects", { headers: hA, data: { name: "shared-name" } })).json();
+    const projB = await (await request.post("/projects", { headers: hB, data: { name: "shared-name" } })).json();
+    expect(projA.id).not.toBe(projB.id);
+    // …but a duplicate for the SAME owner is still rejected.
+    expect((await request.post("/projects", { headers: hA, data: { name: "Shared-Name" } })).status()).toBe(400);
+
+    // Project lists are scoped.
+    const aliceProjects = await (await request.get("/projects", { headers: hA })).json();
+    expect(aliceProjects.map((p: { id: string }) => p.id)).toContain(projA.id);
+    expect(aliceProjects.map((p: { id: string }) => p.id)).not.toContain(projB.id);
+
+    // Alice can't rename or delete Bob's project.
+    expect((await request.put(`/projects/${projB.id}`, { headers: hA, data: { name: "stolen" } })).status()).toBe(400);
+    expect((await (await request.delete(`/projects/${projB.id}`, { headers: hA })).json()).deleted).toBe(false);
+
+    // Traces are scoped: Alice's trace is invisible to Bob (list, get, latest, screenshots, edit, delete).
+    const traceA = await (
+      await request.post("/traces", { headers: hA, data: { trace: makeTrace("alice-flow", { projectId: projA.id }) } })
+    ).json();
+    const bobList = await (await request.get("/traces", { headers: hB })).json();
+    expect(bobList.map((t: { id: string }) => t.id)).not.toContain(traceA.id);
+    expect((await request.get(`/traces/${traceA.id}`, { headers: hB })).status()).toBe(404);
+    expect((await request.get(`/traces/${traceA.id}/screenshots`, { headers: hB })).status()).toBe(404);
+    expect((await request.put(`/traces/${traceA.id}`, { headers: hB, data: makeTrace("hijack") })).status()).toBe(404);
+    expect((await request.delete(`/traces/${traceA.id}`, { headers: hB })).status()).toBe(404);
+
+    // "latest" resolves within the caller's own traces.
+    const traceB = await (await request.post("/traces", { headers: hB, data: { trace: makeTrace("bob-flow") } })).json();
+    expect((await (await request.get("/traces/latest", { headers: hA })).json()).id).toBe(traceA.id);
+    expect((await (await request.get("/traces/latest", { headers: hB })).json()).id).toBe(traceB.id);
+
+    // Admin sees both users' traces and projects.
+    const { token: adminTok } = await login(request, "admin", ADMIN_PASS);
+    const adminList = await (await request.get("/traces", { headers: auth(adminTok) })).json();
+    const ids = adminList.map((t: { id: string }) => t.id);
+    expect(ids).toContain(traceA.id);
+    expect(ids).toContain(traceB.id);
+    const adminProjects = await (await request.get("/projects", { headers: auth(adminTok) })).json();
+    const pids = adminProjects.map((p: { id: string }) => p.id);
+    expect(pids).toContain(projA.id);
+    expect(pids).toContain(projB.id);
+  });
+});
+
 test.describe("traces", () => {
   test("ingest stamps createdBy and keeps projectId; list filters by project", async ({ request }) => {
     const { token } = await login(request, "admin", ADMIN_PASS);

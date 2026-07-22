@@ -31,6 +31,10 @@ one**) — new accounts get the plain `user` role and a personal `t2e_…` API t
 (dashboard → **Copy token**; resettable by an admin). Users paste *their* token into the
 extension and `.mcp.json`; uploads are stamped with their username.
 
+**Traces and projects are scoped per user**: each user only sees and manages what they
+created (someone else's trace/project simply 404s); admins — and the legacy token — see
+everything. Project names only need to be unique per user.
+
 Set `TRACE2E_ADMIN_PASSWORD` and the daemon bootstraps an `admin` user on startup; admins
 get an **Admin** page to list/delete users, reset tokens and set passwords. The legacy
 shared `TRACE2E_TOKEN` keeps working (as an admin) so existing setups don't break — you
