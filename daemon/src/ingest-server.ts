@@ -29,6 +29,7 @@ import { createProject, deleteProject, listProjects, renameProject } from "./pro
  * HTTP API for trace2e.
  *
  * Auth:
+ *   POST   /auth/register          { username, password } → { token, user }  (no auth; open sign-up)
  *   POST   /auth/login             { username, password } → { token, user }  (no auth)
  *   GET    /auth/me                → { id, username, role }
  * Traces:
@@ -127,6 +128,21 @@ export async function startIngestServer(): Promise<void> {
     }
 
     try {
+      // POST /auth/register — open sign-up: anyone can create a user/password (no auth
+      // required). New accounts always get the plain "user" role.
+      if (req.method === "POST" && path === "/auth/register") {
+        const { username, password } = JSON.parse(await readBody(req)) as {
+          username?: string;
+          password?: string;
+        };
+        const user = await createUser(String(username ?? ""), String(password ?? ""), "user");
+        send(res, 201, {
+          token: user.token,
+          user: { id: user.id, username: user.username, role: user.role },
+        });
+        return;
+      }
+
       // POST /auth/login — password → the user's static API token (no auth required).
       if (req.method === "POST" && path === "/auth/login") {
         const { username, password } = JSON.parse(await readBody(req)) as {

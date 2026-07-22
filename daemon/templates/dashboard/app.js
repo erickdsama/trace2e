@@ -95,45 +95,56 @@ function renderNav() {
 // ---------------------------------------------------------------------------
 // #login
 
-function viewLogin() {
+function viewLogin(registering) {
   setStatus("");
   $("view").innerHTML =
     '<form class="card login" id="loginForm">' +
-    "<h2>Sign in</h2>" +
-    '<input id="lu" placeholder="username" autocomplete="username" />' +
-    '<input id="lp" type="password" placeholder="password" autocomplete="current-password" />' +
-    '<button class="primary" type="submit">Log in</button>' +
+    "<h2>" + (registering ? "Create account" : "Sign in") + "</h2>" +
+    '<input id="lu" placeholder="username (lowercase)" autocomplete="username" />' +
+    '<input id="lp" type="password" placeholder="password (min 8 chars)" autocomplete="' + (registering ? "new-password" : "current-password") + '" />' +
+    (registering ? '<input id="lp2" type="password" placeholder="repeat password" autocomplete="new-password" />' : "") +
+    '<button class="primary" type="submit">' + (registering ? "Create account" : "Log in") + "</button>" +
     '<div class="error" id="lerr"></div>' +
-    '<details class="alt"><summary>…or paste an API token directly</summary>' +
-    '<input id="lt" type="password" placeholder="access token" />' +
-    '<button class="mini" type="button" id="ltgo">Use token</button>' +
-    "</details></form>";
+    '<a href="javascript:void 0" id="swap">' + (registering ? "Already have an account? Sign in" : "No account? Create one") + "</a>" +
+    (registering
+      ? ""
+      : '<details class="alt"><summary>…or paste an API token directly</summary>' +
+        '<input id="lt" type="password" placeholder="access token" />' +
+        '<button class="mini" type="button" id="ltgo">Use token</button>' +
+        "</details>") +
+    "</form>";
+  $("swap").onclick = () => viewLogin(!registering);
   $("loginForm").onsubmit = async (e) => {
     e.preventDefault();
     $("lerr").textContent = "";
+    if (registering && $("lp").value !== $("lp2").value) {
+      $("lerr").textContent = "passwords don't match";
+      return;
+    }
     try {
-      const res = await fetch("/auth/login", {
+      const res = await fetch(registering ? "/auth/register" : "/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username: $("lu").value.trim(), password: $("lp").value }),
+        body: JSON.stringify({ username: $("lu").value.trim().toLowerCase(), password: $("lp").value }),
       });
       const body = await res.json();
-      if (!res.ok) throw new Error(body.error || "login failed");
+      if (!res.ok) throw new Error(body.error || (registering ? "registration failed" : "login failed"));
       setToken(body.token);
       me = body.user;
       go("#traces");
     } catch (err) {
-      $("lerr").textContent = err.message;
+      $("lerr").textContent = err.message.replace(/^bad request: /, "");
     }
   };
-  $("ltgo").onclick = async () => {
-    setToken($("lt").value.trim());
-    if (await whoami()) go("#traces");
-    else {
-      setToken("");
-      $("lerr").textContent = "token rejected";
-    }
-  };
+  if (!registering)
+    $("ltgo").onclick = async () => {
+      setToken($("lt").value.trim());
+      if (await whoami()) go("#traces");
+      else {
+        setToken("");
+        $("lerr").textContent = "token rejected";
+      }
+    };
 }
 
 // ---------------------------------------------------------------------------

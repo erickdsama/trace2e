@@ -50,7 +50,7 @@ project and talks to your hosted daemon. The extension defaults its Daemon URL t
 2. **Load the extension.** Unzip `trace2e-extension-chrome.zip`, load it at
    `chrome://extensions` (Developer mode → Load unpacked). Right-click the extension icon →
    **Options** (or the ⚙ gear in the side panel) → paste your token → Save (the URL is
-   pre-filled). Get your token from the daemon dashboard: log in → **Copy token**.
+   pre-filled). Get your token from the daemon dashboard: sign up / log in → **Copy token**.
 3. **Record → Upload.** Name the flow (any time), pick a project if you use them, drive the
    site, add checkpoints/waits with the picker, then **Upload to daemon**.
 4. **Generate tests.** In Claude Code: `/trace2e <flow-name>` (omit the name for the latest).
@@ -106,10 +106,11 @@ pnpm dist           # → dist/trace2e-use.tgz (turnkey package)
 - Local mode binds loopback and rejects non-loopback callers. Hosted mode binds `0.0.0.0`,
   requires a Bearer token, restricts CORS to the extension origin, and expects TLS at the
   proxy (Caddy in the provided deploy).
-- Hosted daemons support **per-user accounts**: set `TRACE2E_ADMIN_PASSWORD`, log into the
-  dashboard as `admin`, and create a user per teammate — each with their own password and
-  resettable `t2e_…` API token (scrypt-hashed passwords, tokens never re-shown after
-  creation). The legacy single `TRACE2E_TOKEN` still works for local/simple setups.
+- Hosted daemons support **per-user accounts**: anyone can sign up from the dashboard's
+  login page and gets their own password + resettable `t2e_…` API token (scrypt-hashed
+  passwords, tokens never re-shown after creation). Set `TRACE2E_ADMIN_PASSWORD` to
+  bootstrap an `admin` who can manage users. The legacy single `TRACE2E_TOKEN` still
+  works for local/simple setups.
 - Custom JS / hook code is operator-authored and visible in the side panel before upload —
   nothing is injected silently. It is recorded as text and only ever runs inside the
   generated Playwright test, never in the extension.

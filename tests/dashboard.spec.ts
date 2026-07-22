@@ -29,6 +29,27 @@ test("unauthenticated visit lands on the login view; bad password shows an error
   await expect(page.locator("#lerr")).toContainText("invalid");
 });
 
+test("self-registration from the login page lands in the traces view", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#swap").click(); // "No account? Create one"
+  await page.locator("#lu").fill("selfserve");
+  await page.locator("#lp").fill("selfserve-pw");
+  await page.locator("#lp2").fill("selfserve-pw");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.locator("#side")).toBeVisible();
+  await expect(page.locator("#nav")).toContainText("selfserve · user");
+});
+
+test("registration with mismatched passwords shows an error", async ({ page }) => {
+  await page.goto("/");
+  await page.locator("#swap").click();
+  await page.locator("#lu").fill("mismatch");
+  await page.locator("#lp").fill("password-1");
+  await page.locator("#lp2").fill("password-2");
+  await page.getByRole("button", { name: "Create account" }).click();
+  await expect(page.locator("#lerr")).toContainText("don't match");
+});
+
 test("login → traces view with projects sidebar; create project inline", async ({ page }) => {
   await loginAsAdmin(page);
   await expect(page.locator("#side")).toContainText("All traces");

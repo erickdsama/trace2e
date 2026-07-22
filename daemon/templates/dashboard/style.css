@@ -43,6 +43,7 @@ img.shot { max-width:100%; border:1px solid var(--border); border-radius:8px; ma
 .login h2 { margin:0 0 4px; }
 .login input { width:100%; }
 .error { color:var(--danger); font-size:13px; }
+.login a { color:var(--accent); font-size:13px; text-decoration:none; }
 details.alt { font-size:13px; color:var(--muted); }
 details.alt input { margin-top:6px; }
 /* projects sidebar */

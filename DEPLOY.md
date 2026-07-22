@@ -10,6 +10,7 @@ The daemon's HTTP API:
 
 | Route | Auth | Purpose |
 |-------|------|---------|
+| `POST /auth/register` | none | open sign-up: create a user/password → API token |
 | `POST /auth/login` | none | password login → the user's API token |
 | `GET /auth/me` | Bearer | identity of the presented token |
 | `POST /traces` | Bearer | extension uploads a recording (stamped with the uploader) |
@@ -25,12 +26,15 @@ The daemon's HTTP API:
 
 ## Users & tokens
 
-Set `TRACE2E_ADMIN_PASSWORD` and the daemon bootstraps an `admin` user on startup. Log
-into the dashboard (`https://your-daemon/`) as `admin`, open **Admin**, and create one
-user per teammate — each gets their own password and a personal `t2e_…` API token (shown
-once; resettable). Users paste *their* token into the extension and `.mcp.json`; uploads
-are stamped with their username. The legacy shared `TRACE2E_TOKEN` keeps working (as an
-admin) so existing setups don't break — you can drop it once everyone has a user.
+Anyone can sign themselves up from the dashboard's login page (**No account? Create
+one**) — new accounts get the plain `user` role and a personal `t2e_…` API token
+(dashboard → **Copy token**; resettable by an admin). Users paste *their* token into the
+extension and `.mcp.json`; uploads are stamped with their username.
+
+Set `TRACE2E_ADMIN_PASSWORD` and the daemon bootstraps an `admin` user on startup; admins
+get an **Admin** page to list/delete users, reset tokens and set passwords. The legacy
+shared `TRACE2E_TOKEN` keeps working (as an admin) so existing setups don't break — you
+can drop it once everyone has a user.
 
 ## Configuration (env)
 

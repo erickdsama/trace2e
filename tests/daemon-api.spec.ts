@@ -62,6 +62,24 @@ test.describe("auth", () => {
     const res = await request.post("/auth/login", { data: { username: "admin", password: "wrong-pass" } });
     expect(res.status()).toBe(401);
   });
+
+  test("open registration: anyone can create a user/password and is logged in", async ({ request }) => {
+    const res = await request.post("/auth/register", { data: { username: "newcomer", password: "newcomer-pw" } });
+    expect(res.status()).toBe(201);
+    const body = await res.json();
+    expect(body.token).toMatch(/^t2e_/);
+    expect(body.user).toMatchObject({ username: "newcomer", role: "user" }); // never admin
+
+    // the returned token authenticates immediately, and password login works too
+    expect((await request.get("/auth/me", { headers: auth(body.token) })).ok()).toBeTruthy();
+    await login(request, "newcomer", "newcomer-pw");
+  });
+
+  test("registration rejects duplicates, bad usernames and short passwords", async ({ request }) => {
+    expect((await request.post("/auth/register", { data: { username: "admin", password: "whatever-8" } })).status()).toBe(400);
+    expect((await request.post("/auth/register", { data: { username: "Bad Name!", password: "whatever-8" } })).status()).toBe(400);
+    expect((await request.post("/auth/register", { data: { username: "shortpw", password: "short" } })).status()).toBe(400);
+  });
 });
 
 test.describe("users (admin)", () => {
