@@ -24,7 +24,9 @@ jobs:
       - name: Build client binaries
         working-directory: client
         run: |
+          # The client embeds the slash-command templates — sync from the canonical copies.
           cp ../daemon/templates/trace2e.md trace2e.md
+          cp ../daemon/templates/trace2e-debug.md trace2e-debug.md
           mkdir -p ../release
           build() { GOOS="$1" GOARCH="$2" go build -ldflags "-s -w" -o "../release/$3" .; }
           build linux   amd64 trace2e-linux-x64
@@ -52,12 +54,17 @@ jobs:
           generate_release_notes: true
           body: |
             **Light trace2e client** (~5 MB static binary, no Node needed). It installs the
-            MCP server + `/trace2e` command into a project and talks to your hosted daemon.
+            MCP server + the `/trace2e` and `/trace2e-debug` commands into a project and
+            talks to your hosted daemon.
 
             1. Download the binary for your OS (`trace2e-<os>-<arch>`), then in your project:
                ```
                ./trace2e-<os>-<arch> init --token <your-token>
                ```
-               (Daemon URL defaults to the hosted daemon; override with `--url`.)
-            2. Load `trace2e-extension-chrome.zip` in Chrome (unpacked), paste the token in
-               the side panel Settings, record, and run `/trace2e` in Claude Code.
+               (Daemon URL defaults to the hosted daemon; override with `--url`. Get your
+               token from the daemon dashboard: sign up / log in → **Copy token**.)
+            2. Load `trace2e-extension-chrome.zip` in Chrome (unpacked). Right-click the
+               extension icon → **Options** → paste your token → Save. Record a flow and
+               upload it.
+            3. In Claude Code: `/trace2e <flow>` generates Playwright tests;
+               `/trace2e-debug <problem> flow: <flow>` replays the recording to diagnose a bug.

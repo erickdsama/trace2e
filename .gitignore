@@ -34,4 +34,5 @@ build-sea/
 # Local Go client build outputs
 /client/trace2e
 /client/trace2e-*
+!/client/trace2e-debug.md
 /release/

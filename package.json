@@ -1,6 +1,6 @@
 {
   "name": "trace2e",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "description": "Record user interactions in Chrome and generate Playwright E2E tests via Claude Code.",
   "packageManager": "pnpm@9.0.0",

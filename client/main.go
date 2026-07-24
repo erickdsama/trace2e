@@ -23,7 +23,7 @@ var commandMarkdown string
 var debugCommandMarkdown string
 
 const (
-	version           = "0.2.0"
+	version           = "0.3.0"
 	defaultDaemonURL  = "https://trace2e.novaminds.xyz"
 	mcpProtocolFallbk = "2024-11-05"
 )

@@ -12,7 +12,7 @@ export default defineConfig({
   manifest: {
     name: "trace2e recorder",
     description: "Record user interactions and generate Playwright E2E tests via Claude Code.",
-    version: "0.2.0",
+    version: "0.3.0",
     ...(process.env.WEBSTORE ? {} : { key: DEV_KEY }),
     permissions: ["activeTab", "storage", "sidePanel", "webNavigation", "tabs"],
     // No host_permissions needed for the daemon: the recorder's <all_urls> content script
