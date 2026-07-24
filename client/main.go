@@ -19,6 +19,9 @@ import (
 //go:embed trace2e.md
 var commandMarkdown string
 
+//go:embed trace2e-debug.md
+var debugCommandMarkdown string
+
 const (
 	version           = "0.2.0"
 	defaultDaemonURL  = "https://trace2e.novaminds.xyz"

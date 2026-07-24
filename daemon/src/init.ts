@@ -2,13 +2,15 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { basename, join } from "node:path";
 import { argv, execPath } from "node:process";
-import { TRACE2E_COMMAND_MD } from "./embedded.js";
+import { TRACE2E_COMMAND_MD, TRACE2E_DEBUG_COMMAND_MD } from "./embedded.js";
 
 /**
  * `trace2e init` — scaffold trace2e into the current project so Claude Code can generate
  * Playwright tests from recordings:
  *   - .mcp.json          registers the local `trace2e mcp` server (merged if it exists)
- *   - .claude/commands/trace2e.md   the /trace2e slash command
+ *   - .claude/commands/trace2e.md         the /trace2e slash command (generate tests)
+ *   - .claude/commands/trace2e-debug.md   the /trace2e-debug slash command (replay a
+ *                                         recorded flow with Playwright to diagnose a bug)
  *
  * Existing files are never clobbered: .mcp.json is merged, and the command file is only
  * written if absent (unless --force).
@@ -76,15 +78,21 @@ export async function runInit(
   await writeFile(mcpPath, JSON.stringify(config, null, 2) + "\n", "utf8");
   console.error(`[trace2e] wrote ${mcpPath} (mcpServers.trace2e${clientMode ? " → " + remoteUrl : ""})`);
 
-  // 2) .claude/commands/trace2e.md
+  // 2) .claude/commands/*.md slash commands
   const cmdDir = join(cwd, ".claude", "commands");
-  const cmdPath = join(cmdDir, "trace2e.md");
-  if (existsSync(cmdPath) && !opts.force) {
-    console.error(`[trace2e] ${cmdPath} already exists — left unchanged (use --force to overwrite)`);
-  } else {
-    await mkdir(cmdDir, { recursive: true });
-    await writeFile(cmdPath, TRACE2E_COMMAND_MD, "utf8");
-    console.error(`[trace2e] wrote ${cmdPath}`);
+  const commands: Array<[string, string]> = [
+    ["trace2e.md", TRACE2E_COMMAND_MD],
+    ["trace2e-debug.md", TRACE2E_DEBUG_COMMAND_MD],
+  ];
+  for (const [file, content] of commands) {
+    const cmdPath = join(cmdDir, file);
+    if (existsSync(cmdPath) && !opts.force) {
+      console.error(`[trace2e] ${cmdPath} already exists — left unchanged (use --force to overwrite)`);
+    } else {
+      await mkdir(cmdDir, { recursive: true });
+      await writeFile(cmdPath, content, "utf8");
+      console.error(`[trace2e] wrote ${cmdPath}`);
+    }
   }
 
   const next = clientMode

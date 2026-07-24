@@ -82,14 +82,20 @@ func runInit(args []string) {
 	}
 	fmt.Fprintf(os.Stderr, "[trace2e] wrote .mcp.json (mcpServers.trace2e%s)\n", suffix)
 
-	// 2) .claude/commands/trace2e.md
+	// 2) .claude/commands/*.md slash commands
 	cmdDir := filepath.Join(".claude", "commands")
-	cmdPath := filepath.Join(cmdDir, "trace2e.md")
-	if _, err := os.Stat(cmdPath); err == nil && !force {
-		fmt.Fprintf(os.Stderr, "[trace2e] %s already exists — left unchanged (use --force)\n", cmdPath)
-	} else {
+	commands := map[string]string{
+		"trace2e.md":       commandMarkdown,
+		"trace2e-debug.md": debugCommandMarkdown,
+	}
+	for file, content := range commands {
+		cmdPath := filepath.Join(cmdDir, file)
+		if _, err := os.Stat(cmdPath); err == nil && !force {
+			fmt.Fprintf(os.Stderr, "[trace2e] %s already exists — left unchanged (use --force)\n", cmdPath)
+			continue
+		}
 		os.MkdirAll(cmdDir, 0o755)
-		if err := os.WriteFile(cmdPath, []byte(commandMarkdown), 0o644); err != nil {
+		if err := os.WriteFile(cmdPath, []byte(content), 0o644); err != nil {
 			fmt.Fprintln(os.Stderr, "failed to write command:", err)
 			os.Exit(1)
 		}

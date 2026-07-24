@@ -45,7 +45,7 @@ project and talks to your hosted daemon. The extension defaults its Daemon URL t
    ```bash
    ./trace2e-<os>-<arch> init --token <your-token>
    ```
-   This writes `.mcp.json` (MCP → the daemon) and `.claude/commands/trace2e.md`.
+   This writes `.mcp.json` (MCP → the daemon) and the `/trace2e` + `/trace2e-debug` commands.
    Override the daemon with `--url https://your-daemon`.
 2. **Load the extension.** Unzip `trace2e-extension-chrome.zip`, load it at
    `chrome://extensions` (Developer mode → Load unpacked). Right-click the extension icon →
@@ -54,6 +54,9 @@ project and talks to your hosted daemon. The extension defaults its Daemon URL t
 3. **Record → Upload.** Name the flow (any time), pick a project if you use them, drive the
    site, add checkpoints/waits with the picker, then **Upload to daemon**.
 4. **Generate tests.** In Claude Code: `/trace2e <flow-name>` (omit the name for the latest).
+5. **Debug a reported bug.** `/trace2e-debug <what went wrong> flow: <flow-name>` — replays
+   the recorded path with Playwright, capturing console/network/page errors to pinpoint
+   the failing step and diagnose the cause.
 
 ## Run your own daemon
 
@@ -76,7 +79,7 @@ Hosted (shared): see **`DEPLOY.md`** and **`deploy/digitalocean/`** — a contai
 | `packages/schema` | Shared `Trace` types + zero-dep validator (producer/consumer contract) |
 | `daemon` | The **server**: HTTP API, MCP source, dashboard, file store (Node/container) |
 | `extension` | WXT Manifest V3 Chrome extension: recorder, element picker, side panel |
-| `.claude/commands/trace2e.md` | Slash command that reads a trace via MCP and writes specs |
+| `.claude/commands/*.md` | Slash commands: `/trace2e` (trace → Playwright specs), `/trace2e-debug` (replay a trace to diagnose a bug) |
 
 ## Client CLI (the release binary)
 
